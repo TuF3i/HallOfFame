@@ -1,0 +1,310 @@
+openapi: 3.0.3
+info:
+  title: HallOfFame API
+  description: 名人堂 - QQ 群言论展示系统 API 文档
+  version: 1.0.0
+servers:
+  - url: http://localhost:8888/api/v1
+    description: 主服务器
+  - url: http://localhost:8889/api/v1/bot
+    description: Bot 服务器 (无鉴权)
+
+paths:
+  # ============ 认证 ============
+  /auth/github/login:
+    get:
+      summary: GitHub OAuth 登录
+      tags: [认证]
+      responses:
+        '302':
+          description: 重定向到 GitHub OAuth 页面
+
+  /auth/github/callback:
+    get:
+      summary: GitHub OAuth 回调
+      tags: [认证]
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '302':
+          description: 重定向到前端页面，携带 access_token 和 refresh_token
+
+  /auth/refresh:
+    post:
+      summary: 刷新 Token
+      tags: [认证]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refresh_token: { type: string }
+      responses:
+        '200':
+          description: 返回新的 access_token
+
+  # ============ 用户 ============
+  /user/profile:
+    get:
+      summary: 获取当前用户信息
+      tags: [用户]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 用户信息
+
+  # ============ 言论 ============
+  /quotes:
+    get:
+      summary: 获取言论列表
+      tags: [言论]
+      parameters:
+        - name: qq_group
+          in: query
+          schema: { type: string }
+        - name: is_featured
+          in: query
+          schema: { type: boolean }
+        - name: start_time
+          in: query
+          schema: { type: string, format: date-time }
+        - name: end_time
+          in: query
+          schema: { type: string, format: date-time }
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: page_size
+          in: query
+          schema: { type: integer, default: 20 }
+      responses:
+        '200':
+          description: 言论列表 (含分页信息)
+
+    post:
+      summary: 添加言论
+      tags: [言论]
+      security:
+        - BearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [qq_group, content]
+              properties:
+                qq_group: { type: string }
+                speaker: { type: string }
+                content: { type: string }
+      responses:
+        '201':
+          description: 创建成功
+
+  /quotes/{id}:
+    get:
+      summary: 获取单条言论
+      tags: [言论]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: 言论详情
+
+    put:
+      summary: 编辑言论
+      tags: [言论]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: 更新成功
+
+    delete:
+      summary: 删除言论 (软删除)
+      tags: [言论]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: 删除成功
+
+  /quotes/{id}/feature:
+    put:
+      summary: 设置/取消精华
+      tags: [言论]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                featured: { type: boolean }
+      responses:
+        '200':
+          description: 更新成功
+
+  /quotes/{id}/images:
+    post:
+      summary: 上传图片
+      tags: [言论]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                image:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: 返回图片 URL
+
+  # ============ QQ 群 ============
+  /groups:
+    get:
+      summary: 获取 QQ 群列表
+      tags: [QQ群]
+      responses:
+        '200':
+          description: 群列表
+
+  # ============ 管理员 ============
+  /admin/users:
+    get:
+      summary: 用户列表
+      tags: [管理员]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 用户列表
+
+  /admin/users/{id}/role:
+    put:
+      summary: 修改用户角色
+      tags: [管理员]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: 角色更新成功
+
+  /admin/whitelist:
+    get:
+      summary: 白名单列表
+      tags: [管理员]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 白名单列表
+
+    post:
+      summary: 添加白名单
+      tags: [管理员]
+      security:
+        - BearerAuth: []
+      responses:
+        '201':
+          description: 添加成功
+
+    delete:
+      summary: 移除白名单
+      tags: [管理员]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: 移除成功
+
+  /admin/login-logs:
+    get:
+      summary: 登录日志
+      tags: [管理员]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: page_size
+          in: query
+          schema: { type: integer, default: 20 }
+      responses:
+        '200':
+          description: 登录日志列表
+
+  # ============ Bot (无鉴权) ============
+  /bot/quotes:
+    post:
+      summary: Bot 添加言论
+      tags: [Bot]
+      responses:
+        '201':
+          description: 创建成功
+
+  /bot/quotes/{id}/images:
+    post:
+      summary: Bot 上传图片
+      tags: [Bot]
+      responses:
+        '200':
+          description: 返回图片 URL
+
+  /bot/groups:
+    get:
+      summary: Bot 获取群列表
+      tags: [Bot]
+      responses:
+        '200':
+          description: 群列表
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

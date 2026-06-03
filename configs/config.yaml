@@ -1,0 +1,49 @@
+# HallOfFame 配置模板
+# 所有配置均可通过环境变量覆盖
+
+# 服务器
+PORT: 8888
+BOT_PORT: 8889
+
+# MongoDB (必选)
+MONGO_URI: mongodb://localhost:27017
+MONGO_DB: halloffame
+
+# PostgreSQL (可选, 未配置则使用 SQLite)
+DB_DRIVER: postgres
+POSTGRES_HOST: localhost
+POSTGRES_PORT: 5432
+POSTGRES_USER: postgres
+POSTGRES_PASSWORD: postgres
+POSTGRES_DB: halloffame
+POSTGRES_SSLMODE: disable
+
+# SQLite (DB_DRIVER=sqlite 时使用)
+SQLITE_PATH: /app/data/halloffame.db
+
+# Redis (可选, 未配置则使用内存)
+REDIS_ADDR: localhost:6379
+REDIS_PASSWORD: ""
+REDIS_DB: 0
+
+# MinIO (可选, 未配置则使用本地存储)
+STORAGE_DRIVER: minio
+MINIO_ENDPOINT: localhost:9000
+MINIO_ACCESS_KEY: minioadmin
+MINIO_SECRET_KEY: minioadmin
+MINIO_BUCKET: halloffame
+MINIO_USE_SSL: false
+
+# 本地存储目录 (STORAGE_DRIVER=local 时使用)
+LOCAL_DATA_DIR: /app/data
+
+# GitHub OAuth
+GITHUB_CLIENT_ID: ""
+GITHUB_CLIENT_SECRET: ""
+GITHUB_REDIRECT_URL: "http://localhost:8888/api/v1/auth/github/callback"
+
+# JWT
+JWT_SECRET: change-this-in-production
+
+# Bot API
+BOT_API_TOKEN: ""
