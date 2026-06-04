@@ -4,10 +4,10 @@ import "time"
 
 type User struct {
 	ID        uint      `gorm:"primaryKey"`
-	GitHubID  string    `gorm:"uniqueIndex;size:255"`
+	Email     string    `gorm:"uniqueIndex;size:255"`
+	Password  string    `gorm:"size:255"`
 	Nickname  string    `gorm:"size:255"`
 	AvatarURL string    `gorm:"size:512"`
-	Email     string    `gorm:"size:255"`
 	Role      string    `gorm:"size:50;default:user"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -15,8 +15,8 @@ type User struct {
 
 type Whitelist struct {
 	ID        uint      `gorm:"primaryKey"`
-	GitHubID  string    `gorm:"uniqueIndex;size:255"`
-	AddedBy   uint      // User.ID who added this entry
+	Email     string    `gorm:"uniqueIndex;size:255"`
+	AddedBy   uint
 	CreatedAt time.Time
 }
 

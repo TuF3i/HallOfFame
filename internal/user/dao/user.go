@@ -2,15 +2,16 @@ package dao
 
 import (
 	"halloffame/internal/user/models"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func (d *UserDao) Create(user *models.User) error {
 	return d.DB.Create(user).Error
 }
 
-func (d *UserDao) FindByGitHubID(githubID string) (*models.User, error) {
+func (d *UserDao) FindByEmail(email string) (*models.User, error) {
 	var user models.User
-	err := d.DB.Where("github_id = ?", githubID).First(&user).Error
+	err := d.DB.Where("email = ?", email).First(&user).Error
 	if err != nil {
 		return nil, err
 	}
@@ -36,28 +37,12 @@ func (d *UserDao) UpdateRole(id uint, role string) error {
 	return d.DB.Model(&models.User{}).Where("id = ?", id).Update("role", role).Error
 }
 
-func (d *UserDao) FindOrCreate(githubID string, nickname string, avatarURL string, email string) (*models.User, error) {
-	user, err := d.FindByGitHubID(githubID)
-	if err == nil {
-		// Update existing user info
-		d.DB.Model(user).Updates(map[string]interface{}{
-			"nickname":   nickname,
-			"avatar_url": avatarURL,
-			"email":      email,
-		})
-		return user, nil
-	}
+func (d *UserDao) HashPassword(password string) (string, error) {
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	return string(bytes), err
+}
 
-	// Create new user
-	newUser := &models.User{
-		GitHubID:  githubID,
-		Nickname:  nickname,
-		AvatarURL: avatarURL,
-		Email:     email,
-		Role:      "user",
-	}
-	if err := d.Create(newUser); err != nil {
-		return nil, err
-	}
-	return newUser, nil
+func (d *UserDao) CheckPassword(password, hash string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+	return err == nil
 }

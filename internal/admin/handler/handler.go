@@ -90,18 +90,17 @@ func (h *AdminHandler) ListWhitelist(ctx context.Context, c *app.RequestContext)
 
 func (h *AdminHandler) AddWhitelist(ctx context.Context, c *app.RequestContext) {
 	var req struct {
-		GitHubID string `json:"github_id"`
+		Email string `json:"email"`
 	}
-	if err := c.BindJSON(&req); err != nil || req.GitHubID == "" {
-		c.JSON(consts.StatusBadRequest, utils.H{"error": "github_id is required"})
+	if err := c.BindJSON(&req); err != nil || req.Email == "" {
+		c.JSON(consts.StatusBadRequest, utils.H{"error": "email is required"})
 		return
 	}
 
 	adminUserID, _ := c.Get("user_id")
-
 	entry := &models.Whitelist{
-		GitHubID: req.GitHubID,
-		AddedBy:  adminUserID.(uint),
+		Email:   req.Email,
+		AddedBy: adminUserID.(uint),
 	}
 
 	if err := h.WhitelistDao.Create(entry); err != nil {

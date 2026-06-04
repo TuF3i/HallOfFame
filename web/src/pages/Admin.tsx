@@ -3,16 +3,15 @@ import { apiFetch } from '../App'
 
 interface User {
   ID: number
-  github_id: string
+  email: string
   nickname: string
   role: string
-  email: string
   created_at: string
 }
 
 interface WhitelistEntry {
   ID: number
-  github_id: string
+  email: string
   added_by: number
   created_at: string
 }
@@ -67,7 +66,7 @@ export default function Admin() {
     try {
       const res = await apiFetch('/admin/whitelist', {
         method: 'POST',
-        body: JSON.stringify({ github_id: newWhitelist }),
+        body: JSON.stringify({ email: newWhitelist }),
       })
       if (res.ok) {
         setNewWhitelist('')
@@ -106,7 +105,7 @@ export default function Admin() {
             <thead>
               <tr>
                 <th>ID</th>
-                <th>GitHub</th>
+                <th>邮箱</th>
                 <th>昵称</th>
                 <th>角色</th>
                 <th>操作</th>
@@ -116,7 +115,7 @@ export default function Admin() {
               {users.map(u => (
                 <tr key={u.ID}>
                   <td>{u.ID}</td>
-                  <td>{u.github_id}</td>
+                  <td>{u.email}</td>
                   <td>{u.nickname}</td>
                   <td><span className={`badge badge-${u.role}`}>{u.role}</span></td>
                   <td>
@@ -143,7 +142,7 @@ export default function Admin() {
             <input
               value={newWhitelist}
               onChange={e => setNewWhitelist(e.target.value)}
-              placeholder="输入 GitHub ID (node_id)"
+              placeholder="输入邮箱地址"
               style={{ flex: 1, padding: '8px 12px', border: '1px solid #d1d5da', borderRadius: 6 }}
             />
             <button className="btn btn-primary" onClick={handleAddWhitelist}>添加</button>
@@ -152,7 +151,7 @@ export default function Admin() {
             <thead>
               <tr>
                 <th>ID</th>
-                <th>GitHub ID</th>
+                <th>邮箱</th>
                 <th>添加时间</th>
                 <th>操作</th>
               </tr>
@@ -161,7 +160,7 @@ export default function Admin() {
               {whitelist.map(w => (
                 <tr key={w.ID}>
                   <td>{w.ID}</td>
-                  <td>{w.github_id}</td>
+                  <td>{w.email}</td>
                   <td>{new Date(w.created_at).toLocaleDateString()}</td>
                   <td>
                     <button className="btn btn-danger" style={{ padding: '2px 8px', fontSize: 12 }} onClick={() => handleRemoveWhitelist(w.ID)}>

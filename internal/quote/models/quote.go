@@ -10,8 +10,7 @@ type Quote struct {
 	ID         primitive.ObjectID `bson:"_id,omitempty" json:"id"`
 	QQGroup    string             `bson:"qq_group" json:"qq_group"`
 	Speaker    string             `bson:"speaker" json:"speaker"`
-	Content    string             `bson:"content" json:"content"` // Markdown
-	Images     []string           `bson:"images,omitempty" json:"images,omitempty"`
+	Content    string             `bson:"content" json:"content"`
 	IsFeatured bool               `bson:"is_featured" json:"is_featured"`
 	CreatedBy  uint               `bson:"created_by" json:"created_by"`
 	CreatedAt  time.Time          `bson:"created_at" json:"created_at"`

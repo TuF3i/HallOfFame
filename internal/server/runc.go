@@ -15,9 +15,7 @@ import (
 	"halloffame/infrastructures/postgres"
 	"halloffame/infrastructures/redis"
 	"halloffame/infrastructures/sqlite"
-	infraMinio "halloffame/infrastructures/minio"
 	"halloffame/pkg/env"
-	"halloffame/pkg/storage"
 	"halloffame/pkg/tokenstore"
 
 	"github.com/cloudwego/hertz/pkg/app/server"
@@ -37,11 +35,6 @@ func RunServer() {
 }
 
 func onCreate(e *env.BasicEnv) {
-	// ============================================================
-	// 1. 基础设施 — 客户端初始化 (函数式选项模式)
-	// ============================================================
-
-	// MongoDB (必选 — 启动失败即退出)
 	mongoClient, err := mongoInfra.NewMongoClient(
 		mongoInfra.WithURI(e.MongoURI),
 		mongoInfra.WithDatabase(e.MongoDBName),
@@ -50,7 +43,6 @@ func onCreate(e *env.BasicEnv) {
 		panic("MongoDB connection failed (required): " + err.Error())
 	}
 
-	// PostgreSQL (可选 — 失败则降级 SQLite)
 	gormDB, pgErr := postgres.NewPostgresClient(
 		postgres.WithHost(e.PostgresHost),
 		postgres.WithPort(e.PostgresPort),
@@ -60,16 +52,12 @@ func onCreate(e *env.BasicEnv) {
 		postgres.WithSSLMode(e.PostgresSSLMode),
 	)
 	if pgErr != nil {
-		// 降级 SQLite
-		gormDB, pgErr = sqlite.NewSqliteClient(
-			sqlite.WithPath(e.SQLitePath),
-		)
+		gormDB, pgErr = sqlite.NewSqliteClient(sqlite.WithPath(e.SQLitePath))
 		if pgErr != nil {
 			panic("SQLite fallback also failed: " + pgErr.Error())
 		}
 	}
 
-	// Redis (可选 — 失败则降级内存)
 	var tokenStore tokenstore.TokenStore
 	redisClient, redisErr := redis.NewRedisClient(
 		redis.WithAddr(e.RedisAddr),
@@ -82,33 +70,8 @@ func onCreate(e *env.BasicEnv) {
 		tokenStore = tokenstore.NewMemoryStore()
 	}
 
-	// MinIO (可选 — 失败或未配置则降级本地存储)
-	var fileStore storage.Storage
-	if e.StorageDriver == "minio" && e.MinioEndpoint != "" {
-		minioClient, minioErr := infraMinio.NewMinioClient(
-			infraMinio.WithEndpoint(e.MinioEndpoint),
-			infraMinio.WithAccessKey(e.MinioAccessKey),
-			infraMinio.WithSecretKey(e.MinioSecretKey),
-			infraMinio.WithBucket(e.MinioBucket),
-			infraMinio.WithUseSSL(e.MinioUseSSL),
-		)
-		if minioErr == nil {
-			fileStore = storage.NewMinioStore(minioClient, e.MinioBucket, e.MinioEndpoint, e.MinioUseSSL)
-		} else {
-			fileStore = storage.NewLocalStore(e.LocalDataDir + "/uploads")
-		}
-	} else {
-		fileStore = storage.NewLocalStore(e.LocalDataDir + "/uploads")
-	}
-
-	// ============================================================
-	// 2. 自动建表 (GORM AutoMigrate)
-	// ============================================================
 	dao.AutoMigrate(gormDB)
 
-	// ============================================================
-	// 3. DAO 层 — Reliance 构造器注入
-	// ============================================================
 	userDao := dao.NewUserDao(&dao.UserDaoReliance{DB: gormDB})
 	loginLogDao := dao.NewLoginLogDao(&dao.LoginLogDaoReliance{DB: gormDB})
 	whitelistDao := dao.NewWhitelistDao(&dao.WhitelistDaoReliance{DB: gormDB})
@@ -116,24 +79,17 @@ func onCreate(e *env.BasicEnv) {
 	quoteDaoObj := quoteDao.NewQuoteDao(&quoteDao.QuoteDaoReliance{Mongo: mongoClient})
 	qqGroupDao := quoteDao.NewQQGroupDao(&quoteDao.QQGroupDaoReliance{Mongo: mongoClient})
 
-	// ============================================================
-	// 4. Handler 层 — Reliance 构造器注入
-	// ============================================================
 	uHandler := userHandler.NewUserHandler(&userHandler.UserHandlerReliance{
-		UserDao:            userDao,
-		WhitelistDao:       whitelistDao,
-		LoginLogDao:        loginLogDao,
-		TokenStore:         tokenStore,
-		JWTSecret:          e.JWTSecret,
-		GitHubClientID:     e.GitHubClientID,
-		GitHubClientSecret: e.GitHubClientSecret,
-		GitHubRedirectURL:  e.GitHubRedirectURL,
+		UserDao:      userDao,
+		WhitelistDao: whitelistDao,
+		LoginLogDao:  loginLogDao,
+		TokenStore:   tokenStore,
+		JWTSecret:    e.JWTSecret,
 	})
 
 	qHandler := quoteHandler.NewQuoteHandler(&quoteHandler.QuoteHandlerReliance{
 		QuoteDao:   quoteDaoObj,
 		QQGroupDao: qqGroupDao,
-		Storage:    fileStore,
 	})
 
 	aHandler := handler.NewAdminHandler(&handler.AdminHandlerReliance{
@@ -142,23 +98,12 @@ func onCreate(e *env.BasicEnv) {
 		LoginLogDao:  loginLogDao,
 	})
 
-	// ============================================================
-	// 5. 中间件
-	// ============================================================
 	mw := middleware.NewMiddleware(&middleware.MiddlewareReliance{
 		JWTSecret:  e.JWTSecret,
 		TokenStore: tokenStore,
 	})
 
-	// ============================================================
-	// 6. Hertz Server
-	// ============================================================
 	hz = server.New(server.WithHostPorts(":" + itoa(e.Port)))
-
-	// 静态文件服务 (for uploaded files in local mode)
-	hz.Static("/uploads", e.LocalDataDir+"/uploads")
-
-	// 注册路由
 	uHandler.RegisterRoutes(hz, mw)
 	qHandler.RegisterRoutes(hz, mw)
 	aHandler.RegisterRoutes(hz, mw)

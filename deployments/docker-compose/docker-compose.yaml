@@ -20,15 +20,10 @@ services:
       - POSTGRES_DB=halloffame
       - REDIS_ADDR=redis:6379
       - REDIS_PASSWORD=
-      - MINIO_ENDPOINT=minio:9000
-      - MINIO_ACCESS_KEY=minioadmin
-      - MINIO_SECRET_KEY=minioadmin
-      - MINIO_BUCKET=halloffame
-      - STORAGE_DRIVER=minio
       - DB_DRIVER=postgres
+      - STORAGE_DRIVER=local
       - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
       - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
-      - GITHUB_REDIRECT_URL=http://localhost:8888/api/v1/auth/github/callback
       - JWT_SECRET=${JWT_SECRET:-change-this-in-production}
       - BOT_API_TOKEN=${BOT_API_TOKEN:-}
     volumes:
@@ -39,8 +34,6 @@ services:
       postgres:
         condition: service_started
       redis:
-        condition: service_started
-      minio:
         condition: service_started
     restart: unless-stopped
 
@@ -70,21 +63,7 @@ services:
       - "6379:6379"
     restart: unless-stopped
 
-  minio:
-    image: minio/minio:latest
-    command: server /data --console-address ":9001"
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    volumes:
-      - minio-data:/data
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-    restart: unless-stopped
-
 volumes:
   halloffame-data:
   mongo-data:
   postgres-data:
-  minio-data:

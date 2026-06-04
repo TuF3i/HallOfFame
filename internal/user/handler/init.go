@@ -6,12 +6,11 @@ import (
 	"github.com/cloudwego/hertz/pkg/app/server"
 )
 
-// RegisterRoutes registers all user-related routes on the given Hertz server group.
 func (h *UserHandler) RegisterRoutes(svr *server.Hertz, mw *middleware.Middleware) {
 	auth := svr.Group("/api/v1/auth")
 	{
-		auth.GET("/github/login", h.GitHubLogin)
-		auth.GET("/github/callback", h.GitHubCallback)
+		auth.POST("/register", h.Register)
+		auth.POST("/login", h.Login)
 		auth.POST("/refresh", h.RefreshToken)
 	}
 
@@ -19,4 +18,7 @@ func (h *UserHandler) RegisterRoutes(svr *server.Hertz, mw *middleware.Middlewar
 	{
 		user.GET("/profile", h.GetProfile)
 	}
+}
+
+func (h *UserHandler) RegisterBotRoutes(botGroup interface{}) {
 }

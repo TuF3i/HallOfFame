@@ -2,9 +2,7 @@ package handler
 
 import (
 	"context"
-	"fmt"
 	"math"
-	"path/filepath"
 	"strconv"
 	"time"
 
@@ -68,7 +66,6 @@ func (h *QuoteHandler) ListQuotesImpl(ctx context.Context, c *app.RequestContext
 	}
 
 	totalPages := int64(math.Ceil(float64(total) / float64(pageSize)))
-
 	c.JSON(consts.StatusOK, utils.H{
 		"quotes":      quotes,
 		"total":       total,
@@ -97,10 +94,9 @@ func (h *QuoteHandler) GetQuoteImpl(ctx context.Context, c *app.RequestContext) 
 
 func (h *QuoteHandler) CreateQuoteImpl(ctx context.Context, c *app.RequestContext) {
 	var req struct {
-		QQGroup string   `json:"qq_group"`
-		Speaker string   `json:"speaker"`
-		Content string   `json:"content"`
-		Images  []string `json:"images,omitempty"`
+		QQGroup string `json:"qq_group"`
+		Speaker string `json:"speaker"`
+		Content string `json:"content"`
 	}
 	if err := c.BindJSON(&req); err != nil {
 		c.JSON(consts.StatusBadRequest, utils.H{"error": "invalid request"})
@@ -114,14 +110,12 @@ func (h *QuoteHandler) CreateQuoteImpl(ctx context.Context, c *app.RequestContex
 
 	userID, _ := c.Get("user_id")
 
-	// Find or create QQ group
 	h.QQGroupDao.FindOrCreate(ctx, req.QQGroup)
 
 	quote := &models.Quote{
 		QQGroup:   req.QQGroup,
 		Speaker:   req.Speaker,
 		Content:   req.Content,
-		Images:    req.Images,
 		CreatedBy: userID.(uint),
 	}
 
@@ -131,43 +125,6 @@ func (h *QuoteHandler) CreateQuoteImpl(ctx context.Context, c *app.RequestContex
 	}
 
 	c.JSON(consts.StatusCreated, utils.H{"quote": quote})
-}
-
-func (h *QuoteHandler) UpdateQuoteImpl(ctx context.Context, c *app.RequestContext) {
-	idStr := string(c.Param("id"))
-	id, err := primitive.ObjectIDFromHex(idStr)
-	if err != nil {
-		c.JSON(consts.StatusBadRequest, utils.H{"error": "invalid quote id"})
-		return
-	}
-
-	var req struct {
-		QQGroup string `json:"qq_group"`
-		Speaker string `json:"speaker"`
-		Content string `json:"content"`
-	}
-	if err := c.BindJSON(&req); err != nil {
-		c.JSON(consts.StatusBadRequest, utils.H{"error": "invalid request"})
-		return
-	}
-
-	update := map[string]interface{}{}
-	if req.QQGroup != "" {
-		update["qq_group"] = req.QQGroup
-	}
-	if req.Speaker != "" {
-		update["speaker"] = req.Speaker
-	}
-	if req.Content != "" {
-		update["content"] = req.Content
-	}
-
-	if err := h.QuoteDao.Update(ctx, id, update); err != nil {
-		c.JSON(consts.StatusInternalServerError, utils.H{"error": "failed to update quote"})
-		return
-	}
-
-	c.JSON(consts.StatusOK, utils.H{"message": "updated"})
 }
 
 func (h *QuoteHandler) DeleteQuoteImpl(ctx context.Context, c *app.RequestContext) {
@@ -198,7 +155,6 @@ func (h *QuoteHandler) ToggleFeaturedImpl(ctx context.Context, c *app.RequestCon
 		Featured bool `json:"featured"`
 	}
 	if err := c.BindJSON(&req); err != nil {
-		// If no body, toggle
 		quote, err := h.QuoteDao.FindByID(ctx, id)
 		if err != nil {
 			c.JSON(consts.StatusNotFound, utils.H{"error": "quote not found"})
@@ -215,46 +171,6 @@ func (h *QuoteHandler) ToggleFeaturedImpl(ctx context.Context, c *app.RequestCon
 	c.JSON(consts.StatusOK, utils.H{"message": "updated"})
 }
 
-func (h *QuoteHandler) UploadImageImpl(ctx context.Context, c *app.RequestContext) {
-	idStr := string(c.Param("id"))
-	id, err := primitive.ObjectIDFromHex(idStr)
-	if err != nil {
-		c.JSON(consts.StatusBadRequest, utils.H{"error": "invalid quote id"})
-		return
-	}
-
-	// Check quote exists
-	_, err = h.QuoteDao.FindByID(ctx, id)
-	if err != nil {
-		c.JSON(consts.StatusNotFound, utils.H{"error": "quote not found"})
-		return
-	}
-
-	file, err := c.FormFile("image")
-	if err != nil {
-		c.JSON(consts.StatusBadRequest, utils.H{"error": "missing image file"})
-		return
-	}
-
-	f, err := file.Open()
-	if err != nil {
-		c.JSON(consts.StatusInternalServerError, utils.H{"error": "failed to open file"})
-		return
-	}
-	defer f.Close()
-
-	ext := filepath.Ext(file.Filename)
-	filename := fmt.Sprintf("quotes/%s/%d%s", idStr, time.Now().UnixNano(), ext)
-
-	url, err := h.Storage.Upload(ctx, filename, f)
-	if err != nil {
-		c.JSON(consts.StatusInternalServerError, utils.H{"error": "failed to upload image"})
-		return
-	}
-
-	c.JSON(consts.StatusOK, utils.H{"url": url})
-}
-
 func (h *QuoteHandler) ListGroupsImpl(ctx context.Context, c *app.RequestContext) {
 	groups, err := h.QQGroupDao.FindAll(ctx)
 	if err != nil {
@@ -263,8 +179,6 @@ func (h *QuoteHandler) ListGroupsImpl(ctx context.Context, c *app.RequestContext
 	}
 	c.JSON(consts.StatusOK, utils.H{"groups": groups})
 }
-
-// --- Bot handlers ---
 
 func (h *QuoteHandler) BotCreateQuoteImpl(ctx context.Context, c *app.RequestContext) {
 	var req struct {
@@ -292,12 +206,4 @@ func (h *QuoteHandler) BotCreateQuoteImpl(ctx context.Context, c *app.RequestCon
 	}
 
 	c.JSON(consts.StatusCreated, utils.H{"quote_id": quote.ID.Hex()})
-}
-
-func (h *QuoteHandler) BotUploadImageImpl(ctx context.Context, c *app.RequestContext) {
-	h.UploadImageImpl(ctx, c)
-}
-
-func (h *QuoteHandler) BotListGroupsImpl(ctx context.Context, c *app.RequestContext) {
-	h.ListGroupsImpl(ctx, c)
 }
