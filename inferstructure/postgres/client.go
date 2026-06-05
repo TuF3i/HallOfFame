@@ -1,6 +1,11 @@
 package postgres
 
-import "gorm.io/gorm"
+import (
+	"fmt"
+
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+)
 
 type PostgresClient struct {
 	addr     string
@@ -49,6 +54,14 @@ func NewClient(opts ...opt) (*PostgresClient, error) {
 	for _, opt := range opts {
 		opt(conf)
 	}
+
+	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", conf.addr, conf.port, conf.username, conf.password, conf.database)
+	client, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	if err != nil {
+		return nil, err
+	}
+
+	conf.Client = client
 
 	return conf, nil
 }

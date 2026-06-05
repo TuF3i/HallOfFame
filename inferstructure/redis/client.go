@@ -1,13 +1,17 @@
 package redis
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/redis/go-redis/v9"
 )
 
 type RedisClient struct {
-	Client *redis.Client
+	addr     string
+	port     int
+	password string
+	Client   *redis.Client
 }
 
 func (r *RedisClient) Shutdown() error {
@@ -46,6 +50,16 @@ func NewClient(opts ...opt) (*RedisClient, error) {
 
 	for _, opt := range opts {
 		opt(conf)
+	}
+
+	conf.Client = redis.NewClient(&redis.Options{
+		Addr:     fmt.Sprintf("%s:%d", conf.addr, conf.port),
+		DB:       0,
+		Password: conf.password,
+	})
+
+	if err := conf.Client.Ping(context.Background()).Err(); err != nil {
+		return nil, err
 	}
 
 	return conf, nil

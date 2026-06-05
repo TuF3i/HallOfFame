@@ -1,7 +1,7 @@
 package config
 
 import (
-	"HallOfFame/internal/etcd"
+	"HallOfFame/inferstructure/etcd"
 	"context"
 	"encoding/json"
 	"fmt"

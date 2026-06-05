@@ -1,6 +1,12 @@
 package minio
 
-import "github.com/minio/minio-go/v7"
+import (
+	"context"
+	"errors"
+
+	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
+)
 
 type MinioClient struct {
 	Client   *minio.Client
@@ -8,7 +14,7 @@ type MinioClient struct {
 	port     int
 	username string
 	password string
-	bucket   string
+	Bucket   string
 }
 
 type opt func(c *MinioClient)
@@ -37,7 +43,7 @@ func WithPassword(password string) opt {
 }
 func WithBucket(bucket string) opt {
 	return func(c *MinioClient) {
-		c.bucket = bucket
+		c.Bucket = bucket
 	}
 }
 
@@ -47,6 +53,39 @@ func NewClient(opts ...opt) (*MinioClient, error) {
 	for _, opt := range opts {
 		opt(conf)
 	}
+
+	client, err := minio.New(
+		conf.addr,
+		&minio.Options{
+			Creds: credentials.NewStaticV4(
+				conf.username,
+				conf.password,
+				"",
+			),
+			Secure: false,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	exists, err := client.BucketExists(context.Background(), conf.Bucket)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, errors.New("blanket not exists")
+	}
+
+	exists, err = client.BucketExists(context.Background(), conf.Bucket)
+	if err != nil {
+		return nil, err
+	}
+	if !exists {
+		return nil, errors.New("pic blanket not exists")
+	}
+
+	conf.Client = client
 
 	return conf, nil
 }

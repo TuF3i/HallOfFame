@@ -2,12 +2,15 @@ package mongodb
 
 import (
 	"context"
+	"fmt"
 
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type MongoClient struct {
-	Client   *mongo.Client
+	Database *mongo.Database
+	client   *mongo.Client
 	addr     string
 	port     int
 	username string
@@ -16,7 +19,7 @@ type MongoClient struct {
 }
 
 func (r *MongoClient) Shutdown() error {
-	return r.Client.Disconnect(context.Background())
+	return r.client.Disconnect(context.Background())
 }
 
 type opt func(c *MongoClient)
@@ -57,6 +60,20 @@ func NewClient(opts ...opt) (*MongoClient, error) {
 	for _, opt := range opts {
 		opt(conf)
 	}
+
+	clientOptions := options.Client().ApplyURI(fmt.Sprintf("mongodb://%s:%d", conf.addr, conf.port))
+	client, err := mongo.Connect(context.TODO(), clientOptions)
+	if err != nil {
+		return nil, err
+	}
+
+	err = client.Ping(context.TODO(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	conf.Database = client.Database(conf.database)
+	conf.client = client
 
 	return conf, nil
 }
