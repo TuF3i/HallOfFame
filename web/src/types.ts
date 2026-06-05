@@ -55,10 +55,3 @@ export interface LoginLog {
   FailReason: string;
   CreatedAt: string;
 }
-
-export interface WhitelistEntry {
-  ID: number;
-  Email: string;
-  AddedBy: number;
-  CreatedAt: string;
-}

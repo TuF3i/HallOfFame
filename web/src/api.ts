@@ -1,4 +1,4 @@
-import type { AdminUser, AuthTokens, GroupInfo, LoginLog, Profile, Quote, WhitelistEntry } from "./types";
+import type { AdminUser, AuthTokens, GroupInfo, LoginLog, Profile, Quote } from "./types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
 const REQUEST_TIMEOUT_MS = 8_000;
@@ -134,6 +134,13 @@ export const api = {
     return data.quotes ?? [];
   },
 
+  async createQuote(qqGroup: string, speaker: string, content: string): Promise<void> {
+    await authedRequest("/api/v1/quotes", {
+      method: "POST",
+      body: JSON.stringify({ qq_group: qqGroup, speaker, content }),
+    });
+  },
+
   async groups(): Promise<GroupInfo[]> {
     const data = await request<{ groups: GroupInfo[] }>("/api/v1/groups");
     return data.groups ?? [];
@@ -160,22 +167,6 @@ export const api = {
       method: "PUT",
       body: JSON.stringify({ role }),
     });
-  },
-
-  async adminWhitelist(): Promise<WhitelistEntry[]> {
-    const data = await authedRequest<{ whitelist: WhitelistEntry[] }>("/api/v1/admin/whitelist");
-    return data.whitelist ?? [];
-  },
-
-  async adminWhitelistAdd(email: string): Promise<void> {
-    await authedRequest("/api/v1/admin/whitelist", {
-      method: "POST",
-      body: JSON.stringify({ email }),
-    });
-  },
-
-  async adminWhitelistRemove(id: number): Promise<void> {
-    await authedRequest(`/api/v1/admin/whitelist/${id}`, { method: "DELETE" });
   },
 
   async loginLogs(): Promise<LoginLog[]> {
