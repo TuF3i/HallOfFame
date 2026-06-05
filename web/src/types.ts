@@ -11,7 +11,7 @@ export interface Profile {
   id: number;
   email: string;
   nickname: string;
-  role: string;
+  role: "user" | "admin" | "banned" | string;
 }
 
 export interface Quote {
@@ -21,6 +21,7 @@ export interface Quote {
   content: string;
   created_at: string;
   is_featured: boolean;
+  image_url?: string;
 }
 
 export interface QuotePerson {
@@ -37,21 +38,24 @@ export interface QuotePerson {
 export interface GroupInfo {
   id: string;
   name: string;
+  member_count: number;
+  quote_count: number;
+  sync_status: "online" | "syncing" | "offline";
 }
 
 export interface AdminUser {
-  ID: number;
-  Email: string;
-  Nickname: string;
-  Role: string;
-  CreatedAt: string;
+  id: number;
+  email: string;
+  nickname: string;
+  role: "user" | "admin" | "banned";
+  last_login: string;
+  enabled: boolean;
 }
 
 export interface LoginLog {
-  ID: number;
-  UserID: number;
-  IP: string;
-  Success: boolean;
-  FailReason: string;
-  CreatedAt: string;
+  id: string;
+  at: string;
+  email: string;
+  ip: string;
+  result: "success" | "failed";
 }

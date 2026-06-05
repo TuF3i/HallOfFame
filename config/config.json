@@ -1,0 +1,33 @@
+{
+  "hertzConf": {
+    "listenAddr": "0.0.0.0",
+    "webApiListerPort": 8080,
+    "botApiListenPort": 9090
+  },
+  "redisConf": {
+    "addr": "localhost",
+    "port": 6379,
+    "password": ""
+  },
+  "mongoDBConf": {
+    "addr": "localhost",
+    "port": 27017,
+    "database": "halloffame",
+    "username": "mongodb",
+    "password": "mongodb"
+  },
+  "postgreSQLConf": {
+    "addr": "localhost",
+    "port": 5432,
+    "database": "halloffame",
+    "username": "halloffame",
+    "password": "halloffame"
+  },
+  "minioConf": {
+    "addr": "localhost",
+    "port": 80,
+    "username": "admin",
+    "password": "",
+    "bucket": "halloffame"
+  }
+}

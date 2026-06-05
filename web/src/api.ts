@@ -1,3 +1,4 @@
+import { mockGroups, mockLoginLogs, mockPeople, mockProfile, mockUsers } from "./mockData";
 import type { AdminUser, AuthTokens, GroupInfo, LoginLog, Profile, Quote } from "./types";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
@@ -6,6 +7,7 @@ const TOKEN_STORAGE_KEY = "hall-of-fame.tokens";
 
 export class ApiError extends Error {
   readonly status: number;
+
   constructor(message: string, status = 0) {
     super(message);
     this.name = "ApiError";
@@ -16,12 +18,13 @@ export class ApiError extends Error {
 export const tokenStore = {
   read(): AuthTokens | null {
     const raw = window.localStorage.getItem(TOKEN_STORAGE_KEY);
-    if (!raw) return null;
+    if (!raw) {
+      return null;
+    }
+
     try {
       const parsed = JSON.parse(raw) as Partial<AuthTokens>;
-      return typeof parsed.access_token === "string"
-        ? { access_token: parsed.access_token, refresh_token: parsed.refresh_token }
-        : null;
+      return typeof parsed.access_token === "string" ? { access_token: parsed.access_token, refresh_token: parsed.refresh_token } : null;
     } catch {
       window.localStorage.removeItem(TOKEN_STORAGE_KEY);
       return null;
@@ -36,6 +39,10 @@ export const tokenStore = {
 };
 
 async function request<T>(path: string, init: RequestInit = {}, withAuth = false): Promise<T> {
+  if (!API_BASE_URL) {
+    throw new ApiError("API base URL is not configured.", 0);
+  }
+
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   const headers = new Headers(init.headers);
@@ -44,133 +51,104 @@ async function request<T>(path: string, init: RequestInit = {}, withAuth = false
   if (!headers.has("Content-Type") && !(init.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
   }
+
   if (withAuth && tokens?.access_token) {
     headers.set("Authorization", `Bearer ${tokens.access_token}`);
   }
 
   try {
-    const response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers, signal: controller.signal });
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      ...init,
+      headers,
+      signal: controller.signal,
+    });
+
     if (!response.ok) {
-      const body = await response.json().catch(() => ({}));
-      throw new ApiError((body as { error?: string }).error ?? `请求失败 (HTTP ${response.status})`, response.status);
+      throw new ApiError(`Request failed with HTTP ${response.status}.`, response.status);
     }
-    if (response.status === 204) return undefined as T;
+
+    if (response.status === 204) {
+      return undefined as T;
+    }
+
     return (await response.json()) as T;
   } catch (error) {
-    if (error instanceof ApiError) throw error;
-    if (error instanceof DOMException && error.name === "AbortError") {
-      throw new ApiError("请求超时。", 0);
+    if (error instanceof ApiError) {
+      throw error;
     }
-    throw new ApiError("网络请求失败，请确认后端服务已启动。", 0);
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new ApiError("Request timed out. Please check the API service.", 0);
+    }
+    throw new ApiError("Network request failed. Showing local preview data.", 0);
   } finally {
     window.clearTimeout(timeoutId);
   }
 }
 
-let refreshPromise: Promise<AuthTokens> | null = null;
-
-async function refreshTokens(): Promise<AuthTokens> {
-  if (refreshPromise) return refreshPromise;
-  const tokens = tokenStore.read();
-  if (!tokens?.refresh_token) {
-    tokenStore.clear();
-    throw new ApiError("登录已过期，请重新登录。", 401);
-  }
-  refreshPromise = (async () => {
-    try {
-      const result = await request<{ access_token: string }>(
-        "/api/v1/auth/refresh",
-        { method: "POST", body: JSON.stringify({ refresh_token: tokens.refresh_token }) },
-        false,
-      );
-      const newTokens: AuthTokens = { access_token: result.access_token, refresh_token: tokens.refresh_token };
-      tokenStore.write(newTokens);
-      return newTokens;
-    } catch {
-      tokenStore.clear();
-      throw new ApiError("登录已过期，请重新登录。", 401);
-    } finally {
-      refreshPromise = null;
-    }
-  })();
-  return refreshPromise;
+function delay<T>(value: T, ms = 260): Promise<T> {
+  return new Promise((resolve) => {
+    window.setTimeout(() => resolve(value), ms);
+  });
 }
 
-async function authedRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+async function withFallback<T>(remote: () => Promise<T>, fallback: T): Promise<T> {
   try {
-    return await request<T>(path, init, true);
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 401) {
-      await refreshTokens();
-      return await request<T>(path, init, true);
-    }
-    throw error;
+    return await remote();
+  } catch {
+    return delay(fallback);
   }
 }
 
 export const api = {
   async login(email: string, password: string): Promise<AuthTokens> {
-    return request<AuthTokens>("/api/v1/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ email, password }),
-    });
+    const fallback = {
+      access_token: `preview.${btoa(`${email}:${password}`).slice(0, 18)}.token`,
+      refresh_token: "preview.refresh.token",
+    };
+    return withFallback(
+      () =>
+        request<AuthTokens>("/auth/login", {
+          method: "POST",
+          body: JSON.stringify({ email, password }),
+        }),
+      fallback,
+    );
   },
 
-  async register(email: string, password: string, nickname: string): Promise<void> {
-    await request<{ message: string }>("/api/v1/auth/register", {
-      method: "POST",
-      body: JSON.stringify({ email, password, nickname }),
-    });
+  async register(email: string, password: string, nickname: string): Promise<AuthTokens> {
+    return withFallback(
+      async () => {
+        await request<void>("/auth/register", {
+          method: "POST",
+          body: JSON.stringify({ email, password, nickname }),
+        });
+        return api.login(email, password);
+      },
+      {
+        access_token: `preview.${btoa(`${email}:${nickname}`).slice(0, 18)}.token`,
+        refresh_token: "preview.refresh.token",
+      },
+    );
   },
 
   async profile(): Promise<Profile> {
-    return authedRequest<Profile>("/api/v1/user/profile");
+    return withFallback(() => request<Profile>("/user/profile", {}, true), mockProfile);
   },
 
   async quotes(): Promise<Quote[]> {
-    const data = await request<{ quotes: Quote[]; total: number; page: number; page_size: number }>(
-      "/api/v1/quotes?page=1&page_size=80",
-    );
-    return data.quotes ?? [];
-  },
-
-  async createQuote(qqGroup: string, speaker: string, content: string): Promise<void> {
-    await authedRequest("/api/v1/quotes", {
-      method: "POST",
-      body: JSON.stringify({ qq_group: qqGroup, speaker, content }),
-    });
+    const fallback = mockPeople.flatMap((person) => [person.featuredQuote, ...person.history]);
+    return withFallback(() => request<Quote[]>("/quotes?page=1&page_size=80"), fallback);
   },
 
   async groups(): Promise<GroupInfo[]> {
-    const data = await request<{ groups: GroupInfo[] }>("/api/v1/groups");
-    return data.groups ?? [];
-  },
-
-  async deleteQuote(id: string): Promise<void> {
-    await authedRequest(`/api/v1/quotes/${id}`, { method: "DELETE" });
-  },
-
-  async toggleFeatured(id: string, featured: boolean): Promise<void> {
-    await authedRequest(`/api/v1/quotes/${id}/feature`, {
-      method: "PUT",
-      body: JSON.stringify({ featured }),
-    });
+    return withFallback(() => request<GroupInfo[]>("/groups"), mockGroups);
   },
 
   async adminUsers(): Promise<AdminUser[]> {
-    const data = await authedRequest<{ users: AdminUser[] }>("/api/v1/admin/users");
-    return data.users ?? [];
-  },
-
-  async adminUpdateRole(id: number, role: string): Promise<void> {
-    await authedRequest(`/api/v1/admin/users/${id}/role`, {
-      method: "PUT",
-      body: JSON.stringify({ role }),
-    });
+    return withFallback(() => request<AdminUser[]>("/admin/users", {}, true), mockUsers);
   },
 
   async loginLogs(): Promise<LoginLog[]> {
-    const data = await authedRequest<{ logs: LoginLog[] }>("/api/v1/admin/login-logs?page=1&page_size=30");
-    return data.logs ?? [];
+    return withFallback(() => request<LoginLog[]>("/admin/login-logs?page=1&page_size=30", {}, true), mockLoginLogs);
   },
 };
