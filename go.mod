@@ -6,6 +6,7 @@ require (
 	github.com/redis/go-redis/v9 v9.20.0
 	go.etcd.io/etcd/client/v3 v3.6.12
 	go.mongodb.org/mongo-driver v1.17.9
+	gorm.io/gorm v1.31.1
 )
 
 require (
@@ -16,6 +17,8 @@ require (
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.3 // indirect
+	github.com/jinzhu/inflection v1.0.0 // indirect
+	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/klauspost/compress v1.17.9 // indirect
 	github.com/montanaflynn/stats v0.7.1 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
