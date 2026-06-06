@@ -1,0 +1,3 @@
+- [x] `docs/overview.md` 描述了项目定位和技术栈
+- [x] `docs/deploy.md` 包含依赖服务、配置、启动步骤
+- [x] `docs/api.md` 列出了所有 API 路由和格式

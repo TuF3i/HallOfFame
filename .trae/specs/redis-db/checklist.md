@@ -1,0 +1,6 @@
+- [x] `RedisConf` 结构体新增 `DB int` 字段
+- [x] `config.json` 的 `redisConf` 新增 `db` 字段
+- [x] `RedisClient` 结构体新增 `db int` 字段
+- [x] `WithDB` option 函数设置 `c.db` 和 `c.Client`
+- [x] `NewClient` 创建客户端时使用 `conf.db`
+- [x] 编译通过 `go build ./...`

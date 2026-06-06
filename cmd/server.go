@@ -49,6 +49,7 @@ var serverCmd = &cobra.Command{
 			redisClient.WithAddr(cfg.RedisConf.Addr),
 			redisClient.WithPort(cfg.RedisConf.Port),
 			redisClient.WithPassword(cfg.RedisConf.Password),
+			redisClient.WithDB(cfg.RedisConf.DB),
 		)
 		if err != nil {
 			log.Fatalf("failed to init redis: %v", err)

@@ -11,6 +11,7 @@ type RedisClient struct {
 	addr     string
 	port     int
 	password string
+	db       int
 	Client   *redis.Client
 }
 
@@ -48,6 +49,17 @@ func WithPassword(password string) opt {
 	}
 }
 
+func WithDB(db int) opt {
+	return func(c *RedisClient) {
+		c.db = db
+		c.Client = redis.NewClient(&redis.Options{
+			Addr:     c.Client.Options().Addr,
+			Password: c.Client.Options().Password,
+			DB:       db,
+		})
+	}
+}
+
 func NewClient(opts ...opt) (*RedisClient, error) {
 	conf := new(RedisClient)
 
@@ -57,7 +69,7 @@ func NewClient(opts ...opt) (*RedisClient, error) {
 
 	conf.Client = redis.NewClient(&redis.Options{
 		Addr:     fmt.Sprintf("%s:%d", conf.addr, conf.port),
-		DB:       0,
+		DB:       conf.db,
 		Password: conf.password,
 	})
 

@@ -25,6 +25,7 @@ type RedisConf struct {
 	Addr     string
 	Port     int
 	Password string
+	DB       int
 }
 
 type MongoDBConf struct {

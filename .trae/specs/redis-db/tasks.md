@@ -1,0 +1,3 @@
+- [x] Task 1: 修改 config.go — RedisConf 增加 DB 字段
+- [x] Task 2: 修改 config.json — redisConf 增加 db 字段
+- [x] Task 3: 修改 redis/client.go — RedisClient/WithDB/NewClient 支持 DB 选择
