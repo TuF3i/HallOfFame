@@ -16,4 +16,5 @@ type User struct {
 	Role     string `json:"role" gorm:"column:role;type:varchar(20);comment:用户角色"`
 	Email    string `json:"email" gorm:"column:email;type:varchar(64);comment:用户邮箱"`
 	Password string `json:"password" gorm:"column:password;type:varchar(256);comment:用户密码"`
+	Nickname string `json:"nickname" gorm:"column:nickname;type:varchar(64);comment:用户昵称"`
 }

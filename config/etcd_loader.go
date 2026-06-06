@@ -1,13 +1,23 @@
 package config
 
 import (
-	"HallOfFame/inferstructure/etcd"
 	"context"
 	"encoding/json"
 	"fmt"
+
+	etcd "HallOfFame/inferstructure/etcd"
 )
 
-func LoadFromEtcd(ctx context.Context, client *etcd.EtcdClient) (*Config, error) {
+// LoadFromEtcd 从 etcd 加载配置，内部创建 etcd 客户端
+func LoadFromEtcd(ctx context.Context, addr string, port int) (*Config, error) {
+	client, err := etcd.NewClient(
+		etcd.WithAddr(addr),
+		etcd.WithPort(port),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create etcd client: %w", err)
+	}
+	defer client.Shutdown()
 
 	key := "/halloffame/config"
 	resp, err := client.Client.Get(ctx, key)

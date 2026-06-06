@@ -1,0 +1,238 @@
+package consumer
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"log"
+	"time"
+
+	"HallOfFame/config"
+	"HallOfFame/internal/cache"
+	"HallOfFame/internal/dao"
+	"HallOfFame/internal/models"
+
+	"github.com/cloudwego/eino/components/model"
+	"github.com/cloudwego/eino/schema"
+	"github.com/google/uuid"
+)
+
+// BotMsg 是 Redis 队列中消息的格式
+type BotMsg struct {
+	QQGroup   string `json:"qqgroup"`
+	QQNumber  string `json:"qqnumber"`
+	Speaker   string `json:"speaker"`
+	Content   string `json:"content"`
+	Avatar    string `json:"avatar,omitempty"`
+	Timestamp int64  `json:"timestamp"`
+}
+
+// LLMResult 是 LLM 返回的单个结果，包含完整消息内容和压抑度
+type LLMResult struct {
+	Content     string  `json:"content"`
+	Score       float64 `json:"score"`
+	Reason      string  `json:"reason"`
+	QQNumber    string  `json:"qqnumber"`
+	Speaker     string  `json:"speaker"`
+	Avatar      string  `json:"avatar"`
+	QQGroup     string  `json:"qqgroup"`
+	GroupName   string  `json:"groupname"`
+	GroupAvatar string  `json:"groupavatar"`
+}
+
+var systemPrompt = `你是一个恶搞分析机器人。我会给你一批QQ群聊天消息，请你分析每条消息的"性压抑度"（0-100）。
+性压抑度是一个幽默指标，衡量发言中体现的性压抑程度。
+请从这些消息中选出性压抑度最高的0-15条。
+
+你仅返回JSON数组，不要返回其他内容，格式：
+[
+  {
+    "content": "消息原文",
+    "score": 85,
+    "reason": "简短理由",
+    "qqnumber": "发言者QQ号",
+    "speaker": "发言者昵称",
+    "avatar": "头像URL(如果有)",
+    "qqgroup": "群号",
+    "groupname": "群名称(如果有)"
+  }
+]
+score是0-100的整数。
+如果没有任何消息有性压抑倾向，返回空数组[]。`
+
+// Start 启动后台 Consumer 协程，持续检查 Redis 队列并调用 LLM 分析
+func Start(ctx context.Context, c *cache.Cache, d *dao.Dao, chatModel model.ChatModel, cfg *config.LLMConf) {
+	go func() {
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+
+		midnightTicker := time.NewTicker(1 * time.Minute)
+		defer midnightTicker.Stop()
+
+		lastHour := time.Now().Hour()
+
+		for {
+			select {
+			case <-ctx.Done():
+				log.Println("consumer stopped")
+				return
+
+			case <-ticker.C:
+				length, err := c.QueueLen(ctx)
+				if err != nil {
+					continue
+				}
+				if length >= int64(cfg.BatchSize) {
+					log.Printf("consumer: queue length %d >= batchSize %d, triggering analysis", length, cfg.BatchSize)
+					processBatch(ctx, c, d, chatModel, cfg)
+				}
+
+			case <-midnightTicker.C:
+				currentHour := time.Now().Hour()
+				if lastHour != 0 && currentHour == 0 {
+					log.Println("consumer: midnight trigger, processing remaining messages")
+					length, err := c.QueueLen(ctx)
+					if err == nil && length > 0 {
+						processBatch(ctx, c, d, chatModel, cfg)
+					}
+				}
+				lastHour = currentHour
+			}
+		}
+	}()
+}
+
+func processBatch(ctx context.Context, c *cache.Cache, d *dao.Dao, chatModel model.ChatModel, cfg *config.LLMConf) {
+	// 1. 取出全部消息
+	msgs, err := c.PopAllMessages(ctx)
+	if err != nil {
+		log.Printf("consumer: failed to pop messages: %v", err)
+		return
+	}
+	if len(msgs) == 0 {
+		return
+	}
+
+	log.Printf("consumer: processing %d messages", len(msgs))
+
+	// 2. 解析消息作为 LLM 上下文
+	var botMsgs []BotMsg
+	for _, msg := range msgs {
+		var botMsg BotMsg
+		if err := json.Unmarshal([]byte(msg), &botMsg); err != nil {
+			continue
+		}
+		botMsgs = append(botMsgs, botMsg)
+	}
+
+	if len(botMsgs) == 0 {
+		return
+	}
+
+	// 3. 调用 LLM 分析
+	results := callLLM(ctx, chatModel, botMsgs, cfg.MaxResults)
+	if len(results) == 0 {
+		log.Printf("consumer: LLM returned no results for %d messages", len(botMsgs))
+		return
+	}
+
+	// 4. 写入数据库 — LLM 直接返回完整消息内容，无需按 index 映射
+	saved := 0
+	for _, result := range results {
+		quote := &models.Quotes{
+			QID:         uuid.New().String(),
+			Content:     result.Content,
+			Suppression: result.Score,
+			UserData: models.UserMeta{
+				QQNumber: result.QQNumber,
+				Speaker:  result.Speaker,
+				Avatar:   result.Avatar,
+			},
+			GroupData: models.GroupData{
+				GroupNumber: result.QQGroup,
+				GroupName:   result.GroupName,
+				Avatar:      result.GroupAvatar,
+			},
+			AttachmentID: nil,
+			IsFeatured:   false,
+		}
+
+		if err := d.AddQuote(ctx, quote); err != nil {
+			log.Printf("consumer: failed to save quote: %v", err)
+			continue
+		}
+		saved++
+	}
+
+	log.Printf("consumer: processed %d messages, saved %d quotes", len(botMsgs), saved)
+}
+
+func callLLM(ctx context.Context, chatModel model.ChatModel, msgs []BotMsg, maxResults int) []LLMResult {
+	// 构建 user message：序号 + 发言者 + 内容
+	var userContent string
+	for i, msg := range msgs {
+		userContent += fmt.Sprintf("[%d] %s: %s\n", i, msg.Speaker, msg.Content)
+	}
+
+	messages := []*schema.Message{
+		schema.SystemMessage(systemPrompt),
+		schema.UserMessage(userContent),
+	}
+
+	resp, err := chatModel.Generate(ctx, messages)
+	if err != nil {
+		log.Printf("consumer: LLM generate error: %v", err)
+		return nil
+	}
+
+	content := resp.Content
+	if content == "" {
+		log.Println("consumer: LLM returned empty content")
+		return nil
+	}
+
+	// 解析 JSON 返回
+	var results []LLMResult
+	if err := json.Unmarshal([]byte(content), &results); err != nil {
+		log.Printf("consumer: failed to parse LLM response: %v\nresponse: %s", err, content)
+		results = extractJSONArray(content)
+	}
+
+	// 限制返回数量
+	if len(results) > maxResults {
+		results = results[:maxResults]
+	}
+
+	return results
+}
+
+// extractJSONArray 从文本中提取 JSON 数组
+func extractJSONArray(content string) []LLMResult {
+	start := -1
+	for i := 0; i < len(content); i++ {
+		if content[i] == '[' {
+			start = i
+			break
+		}
+	}
+	if start == -1 {
+		return nil
+	}
+
+	end := -1
+	for i := len(content) - 1; i >= start; i-- {
+		if content[i] == ']' {
+			end = i + 1
+			break
+		}
+	}
+	if end == -1 {
+		return nil
+	}
+
+	var results []LLMResult
+	if err := json.Unmarshal([]byte(content[start:end]), &results); err != nil {
+		return nil
+	}
+	return results
+}

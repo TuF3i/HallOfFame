@@ -7,6 +7,8 @@ import (
 	"fmt"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 func (r *Dao) IfUserExist(ctx context.Context, uid string) (bool, error) {
@@ -31,6 +33,14 @@ func (r *Dao) AddUser(ctx context.Context, userInfo *models.User) error {
 func (r *Dao) GetUser(ctx context.Context, email string) (*models.User, error) {
 	var user models.User
 	if err := r.PostgresClient.Client.Where("email = ?", email).First(&user).WithContext(ctx).Error; err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (r *Dao) GetUserByUid(ctx context.Context, uid string) (*models.User, error) {
+	var user models.User
+	if err := r.PostgresClient.Client.Where("uid = ?", uid).First(&user).WithContext(ctx).Error; err != nil {
 		return nil, err
 	}
 	return &user, nil
@@ -118,4 +128,112 @@ func (r *Dao) CheckSpeakerExist(ctx context.Context, qqNumber string) (bool, err
 		return false, err
 	}
 	return true, nil
+}
+
+// ListQuotes 通用分页查询，filter 为 bson.M 条件
+func (r *Dao) ListQuotes(ctx context.Context, filter bson.M, page, pageSize int) ([]models.Quotes, int64, error) {
+	collection := r.MongoClient.Database.Collection(consts.QuotesCollection)
+
+	total, err := collection.CountDocuments(ctx, filter)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	skip := int64((page - 1) * pageSize)
+	limit := int64(pageSize)
+
+	cursor, err := collection.Find(ctx, filter, &options.FindOptions{
+		Skip:  &skip,
+		Limit: &limit,
+		Sort:  bson.D{{Key: "_id", Value: -1}},
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+
+	var quotes []models.Quotes
+	if err := cursor.All(ctx, &quotes); err != nil {
+		return nil, 0, err
+	}
+
+	return quotes, total, nil
+}
+
+// ListSpeakers 从 quotes 聚合去重获取发言者列表
+func (r *Dao) ListSpeakers(ctx context.Context, page, pageSize int) ([]models.SpeakerSummary, int64, error) {
+	collection := r.MongoClient.Database.Collection(consts.QuotesCollection)
+
+	// 先聚合去重获取发言者数量
+	countPipeline := mongo.Pipeline{
+		{{Key: "$group", Value: bson.D{
+			{Key: "_id", Value: "$userdata.qqnumber"},
+		}}},
+		{{Key: "$count", Value: "total"}},
+	}
+	countCursor, err := collection.Aggregate(ctx, countPipeline)
+	if err != nil {
+		return nil, 0, err
+	}
+	var countResult []struct {
+		Total int64 `bson:"total"`
+	}
+	var total int64
+	if err := countCursor.All(ctx, &countResult); err == nil && len(countResult) > 0 {
+		total = countResult[0].Total
+	}
+
+	skip := int64((page - 1) * pageSize)
+	limit := int64(pageSize)
+
+	pipeline := mongo.Pipeline{
+		{{Key: "$group", Value: bson.D{
+			{Key: "_id", Value: "$userdata.qqnumber"},
+			{Key: "speaker", Value: bson.D{{Key: "$first", Value: "$userdata.speaker"}}},
+			{Key: "avatar", Value: bson.D{{Key: "$first", Value: "$userdata.avatar"}}},
+			{Key: "quote_count", Value: bson.D{{Key: "$sum", Value: 1}}},
+		}}},
+		{{Key: "$skip", Value: skip}},
+		{{Key: "$limit", Value: limit}},
+	}
+
+	cursor, err := collection.Aggregate(ctx, pipeline)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	var speakers []models.SpeakerSummary
+	if err := cursor.All(ctx, &speakers); err != nil {
+		return nil, 0, err
+	}
+
+	return speakers, total, nil
+}
+
+// DeleteQuotesBySpeaker 删除某个发言者的所有发言，返回删除数量
+func (r *Dao) DeleteQuotesBySpeaker(ctx context.Context, qqNumber string) (int64, error) {
+	result, err := r.MongoClient.Database.Collection(consts.QuotesCollection).
+		DeleteMany(ctx, bson.M{"userdata.qqnumber": qqNumber})
+	if err != nil {
+		return 0, err
+	}
+	return result.DeletedCount, nil
+}
+
+// UpdateQuoteFeatured 更新精华状态
+func (r *Dao) UpdateQuoteFeatured(ctx context.Context, qid string, featured bool) error {
+	_, err := r.MongoClient.Database.Collection(consts.QuotesCollection).
+		UpdateOne(ctx, bson.M{"qid": qid}, bson.M{"$set": bson.M{"is_featured": featured}})
+	return err
+}
+
+// GetQuotesBySpeaker 按发言者分页查询
+func (r *Dao) GetQuotesBySpeaker(ctx context.Context, qqNumber string, page, pageSize int) ([]models.Quotes, int64, error) {
+	filter := bson.M{"userdata.qqnumber": qqNumber}
+	return r.ListQuotes(ctx, filter, page, pageSize)
+}
+
+// GetFeaturedQuotes 获取精华发言
+func (r *Dao) GetFeaturedQuotes(ctx context.Context, page, pageSize int) ([]models.Quotes, int64, error) {
+	filter := bson.M{"is_featured": true}
+	return r.ListQuotes(ctx, filter, page, pageSize)
 }
