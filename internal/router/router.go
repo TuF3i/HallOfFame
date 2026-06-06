@@ -22,16 +22,18 @@ func RegisterRoutes(h *server.Hertz, cacheClient *cache.Cache, authHandler *auth
 	quoteGroup.GET("/speakers", quoteHandler.ListSpeakers)
 	quoteGroup.GET("/speakers/:qqNumber/quotes", quoteHandler.ListSpeakerQuotes)
 	quoteGroup.GET("/featured", quoteHandler.ListFeaturedQuotes)
-	quoteGroup.GET("/attachments/:attachmentId", quoteHandler.GetAttachment)
+	quoteGroup.GET("/attachments/:qid/:attId", quoteHandler.GetAttachment)
 
 	// 管理路由（需要 JWT 认证 + Admin 权限）
 	adminGroup := h.Group("/api/admin", middleware.AuthMiddleware(cacheClient), middleware.AdminMiddleware())
+	// 精确路由放前面，避免与参数化路由冲突
+	adminGroup.POST("/quotes/trigger", adminHandler.TriggerAnalysis)
+	adminGroup.GET("/quotes", quoteHandler.ListAllQuotes)
+	adminGroup.POST("/quotes", quoteHandler.CreateQuote)
+	// 参数化路由
 	adminGroup.PUT("/users/:uid/role", adminHandler.UpdateRole)
 	adminGroup.DELETE("/users/:uid", adminHandler.DeleteUser)
-	adminGroup.POST("/quotes/trigger", adminHandler.TriggerAnalysis)
 	adminGroup.PUT("/quotes/:qid/featured", quoteHandler.SetFeatured)
 	adminGroup.DELETE("/quotes/:qid", quoteHandler.DeleteQuote)
 	adminGroup.DELETE("/speakers/:qqNumber", quoteHandler.DeleteSpeaker)
-	adminGroup.GET("/quotes", quoteHandler.ListAllQuotes)
-	adminGroup.POST("/quotes", quoteHandler.CreateQuote)
 }

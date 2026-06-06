@@ -38,6 +38,7 @@ func SetTrigger(c *cache.Cache, d *dao.Dao, chatModel model.ChatModel, cfg *conf
 }
 
 // Trigger 手动触发一次 AI 分析，导出供 handler 调用
+// 异步执行，不阻塞调用方
 func Trigger(ctx context.Context) error {
 	triggerMu.Lock()
 	c := triggerCache
@@ -50,18 +51,20 @@ func Trigger(ctx context.Context) error {
 		return fmt.Errorf("consumer: chat model not initialized")
 	}
 
-	processBatch(ctx, c, d, m, cfg)
+	go processBatch(context.Background(), c, d, m, cfg)
 	return nil
 }
 
 // BotMsg 是 Redis 队列中消息的格式
 type BotMsg struct {
-	QQGroup   string `json:"qqgroup"`
-	QQNumber  string `json:"qqnumber"`
-	Speaker   string `json:"speaker"`
-	Content   string `json:"content"`
-	Avatar    string `json:"avatar,omitempty"`
-	Timestamp int64  `json:"timestamp"`
+	QQGroup     string `json:"qqgroup"`
+	QQNumber    string `json:"qqnumber"`
+	Speaker     string `json:"speaker"`
+	Content     string `json:"content"`
+	Avatar      string `json:"avatar,omitempty"`
+	GroupName   string `json:"groupname,omitempty"`
+	GroupAvatar string `json:"groupavatar,omitempty"`
+	Timestamp   int64  `json:"timestamp"`
 }
 
 // LLMResult 是 LLM 返回的单个结果，包含完整消息内容和压抑度
@@ -86,12 +89,13 @@ var systemPrompt = `你是一个恶搞分析机器人。我会给你一批QQ群�
   {
     "content": "消息原文",
     "score": 85,
-    "reason": "简短理由",
+    "reason": "简短但好笑的理由",
     "qqnumber": "发言者QQ号",
     "speaker": "发言者昵称",
     "avatar": "头像URL(如果有)",
     "qqgroup": "群号",
-    "groupname": "群名称(如果有)"
+    "groupname": "群名称(如果有)",
+    "groupavatar": "群头像URL(如果有)"
   }
 ]
 score是0-100的整数。
@@ -208,10 +212,17 @@ func processBatch(ctx context.Context, c *cache.Cache, d *dao.Dao, chatModel mod
 }
 
 func callLLM(ctx context.Context, chatModel model.ChatModel, msgs []BotMsg, maxResults int) []LLMResult {
-	// 构建 user message：序号 + 发言者 + 内容
+	// 构建 user message：序号 + 完整信息
 	var userContent string
 	for i, msg := range msgs {
-		userContent += fmt.Sprintf("[%d] %s: %s\n", i, msg.Speaker, msg.Content)
+		userContent += fmt.Sprintf("[%d] %s(%s): %s\n  群: %s(%s)\n  头像: %s\n  群头像: %s\n", i, msg.Speaker, msg.QQNumber, msg.Content, msg.GroupName, msg.QQGroup, msg.Avatar, msg.GroupAvatar)
+	}
+
+	// 打印发送给 LLM 的消息内容摘要
+	if len(userContent) > 500 {
+		log.Printf("consumer: LLM input (truncated): %s...", userContent[:500])
+	} else {
+		log.Printf("consumer: LLM input: %s", userContent)
 	}
 
 	messages := []*schema.Message{
@@ -231,12 +242,24 @@ func callLLM(ctx context.Context, chatModel model.ChatModel, msgs []BotMsg, maxR
 		return nil
 	}
 
+	// 打印原始 LLM 响应
+	if len(content) > 1000 {
+		log.Printf("consumer: LLM raw response (truncated): %s...", content[:1000])
+	} else {
+		log.Printf("consumer: LLM raw response: %s", content)
+	}
+
 	// 解析 JSON 返回
 	var results []LLMResult
 	if err := json.Unmarshal([]byte(content), &results); err != nil {
 		log.Printf("consumer: failed to parse LLM response: %v\nresponse: %s", err, content)
 		results = extractJSONArray(content)
+		if results != nil {
+			log.Printf("consumer: extractJSONArray recovered %d results", len(results))
+		}
 	}
+
+	log.Printf("consumer: LLM returned %d results", len(results))
 
 	// 限制返回数量
 	if len(results) > maxResults {

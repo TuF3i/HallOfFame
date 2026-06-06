@@ -4,16 +4,21 @@ import (
 	"HallOfFame/internal/models"
 	"HallOfFame/pkg/consts"
 	"context"
+	"errors"
 	"fmt"
 
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"gorm.io/gorm"
 )
 
 func (r *Dao) IfUserExist(ctx context.Context, uid string) (bool, error) {
 	var user models.User
 	if err := r.PostgresClient.Client.Where("uid = ?", uid).First(&user).WithContext(ctx).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
 		return false, err
 	}
 	return true, nil
@@ -84,6 +89,9 @@ func (r *Dao) AddQuote(ctx context.Context, quoteInfo *models.Quotes) error {
 func (r *Dao) CheckQuoteExist(ctx context.Context, qid string) (bool, error) {
 	var quote models.Quotes
 	if err := r.MongoClient.Database.Collection(consts.QuotesCollection).FindOne(ctx, bson.M{"qid": qid}).Decode(&quote); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return false, nil
+		}
 		return false, err
 	}
 	return true, nil
@@ -125,6 +133,9 @@ func (r *Dao) AddSpeaker(ctx context.Context, speakerInfo *models.UserMeta) erro
 func (r *Dao) CheckSpeakerExist(ctx context.Context, qqNumber string) (bool, error) {
 	var speaker models.UserMeta
 	if err := r.MongoClient.Database.Collection(consts.SpeakersCollection).FindOne(ctx, bson.M{"qqnumber": qqNumber}).Decode(&speaker); err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			return false, nil
+		}
 		return false, err
 	}
 	return true, nil

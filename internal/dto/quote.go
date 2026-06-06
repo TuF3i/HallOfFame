@@ -14,7 +14,7 @@ type CreateQuoteReq struct {
 }
 
 type SetFeaturedReq struct {
-	Featured bool `json:"featured"`
+	Featured bool `json:"featured" form:"featured"`
 }
 
 // === 响应 DTO ===

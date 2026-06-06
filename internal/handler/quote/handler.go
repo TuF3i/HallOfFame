@@ -73,7 +73,7 @@ func (h *QuoteHandler) SetFeatured(c context.Context, ctx *app.RequestContext) {
 	}
 
 	// 检查发言是否存在
-	quote, err := h.dao.GetQuote(c, qid)
+	_, err := h.dao.GetQuote(c, qid)
 	if err != nil {
 		ctx.JSON(200, dto.Error(dto.ErrNotFound, "quote not found"))
 		return
@@ -84,8 +84,14 @@ func (h *QuoteHandler) SetFeatured(c context.Context, ctx *app.RequestContext) {
 		return
 	}
 
-	quote.IsFeatured = req.Featured
-	ctx.JSON(200, dto.SuccessResp(dto.QuoteToDTO(quote)))
+	// 从 DB 重新读取最新数据返回，确保 is_featured 为最新状态
+	updatedQuote, err := h.dao.GetQuote(c, qid)
+	if err != nil {
+		ctx.JSON(200, dto.Error(dto.ErrInternal, err.Error()))
+		return
+	}
+
+	ctx.JSON(200, dto.SuccessResp(dto.QuoteToDTO(updatedQuote)))
 }
 
 // DeleteQuote DELETE /api/admin/quotes/:qid
@@ -256,14 +262,13 @@ func (h *QuoteHandler) CreateQuote(c context.Context, ctx *app.RequestContext) {
 	ctx.JSON(200, dto.SuccessResp(dto.QuoteToDTO(quote)))
 }
 
-// GetAttachment GET /api/quotes/attachments/:attachmentId
+// GetAttachment GET /api/quotes/attachments/:qid/:attId
 func (h *QuoteHandler) GetAttachment(c context.Context, ctx *app.RequestContext) {
-	attachmentID := ctx.Param("attachmentId")
-	// 附件 ID 格式为 "qid/fileId"，通过参数传递完整路径
-	// 实际使用中 attachmentId 是完整 minio key 或 qid+fileId
-	// 这里假设 attachmentId 格式为 "qid/filename"
+	qid := ctx.Param("qid")
+	attID := ctx.Param("attId")
+	minioKey := fmt.Sprintf("attachments/%s/%s", qid, attID)
 
-	reader, err := h.storage.GetFile(c, "attachments/"+attachmentID)
+	reader, err := h.storage.GetFile(c, minioKey)
 	if err != nil {
 		ctx.JSON(200, dto.Error(dto.ErrNotFound, "attachment not found"))
 		return

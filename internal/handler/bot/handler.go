@@ -13,21 +13,25 @@ import (
 
 // BotUploadReq 是 QQ 机器人上传消息的请求格式
 type BotUploadReq struct {
-	QQGroup  string `json:"qqgroup"`
-	QQNumber string `json:"qqnumber"`
-	Speaker  string `json:"speaker"`
-	Content  string `json:"content"`
-	Avatar   string `json:"avatar,omitempty"`
+	QQGroup     string `json:"qqgroup"`
+	QQNumber    string `json:"qqnumber"`
+	Speaker     string `json:"speaker"`
+	Content     string `json:"content"`
+	Avatar      string `json:"avatar,omitempty"`
+	GroupName   string `json:"groupname,omitempty"`
+	GroupAvatar string `json:"groupavatar,omitempty"`
 }
 
 // BotUploadMsg 是存入 Redis List 的消息格式
 type BotUploadMsg struct {
-	QQGroup   string `json:"qqgroup"`
-	QQNumber  string `json:"qqnumber"`
-	Speaker   string `json:"speaker"`
-	Content   string `json:"content"`
-	Avatar    string `json:"avatar,omitempty"`
-	Timestamp int64  `json:"timestamp"`
+	QQGroup     string `json:"qqgroup"`
+	QQNumber    string `json:"qqnumber"`
+	Speaker     string `json:"speaker"`
+	Content     string `json:"content"`
+	Avatar      string `json:"avatar,omitempty"`
+	GroupName   string `json:"groupname,omitempty"`
+	GroupAvatar string `json:"groupavatar,omitempty"`
+	Timestamp   int64  `json:"timestamp"`
 }
 
 type BotHandler struct {
@@ -46,12 +50,14 @@ func (h *BotHandler) Upload(c context.Context, ctx *app.RequestContext) {
 	}
 
 	msg := BotUploadMsg{
-		QQGroup:   req.QQGroup,
-		QQNumber:  req.QQNumber,
-		Speaker:   req.Speaker,
-		Content:   req.Content,
-		Avatar:    req.Avatar,
-		Timestamp: time.Now().Unix(),
+		QQGroup:     req.QQGroup,
+		QQNumber:    req.QQNumber,
+		Speaker:     req.Speaker,
+		Content:     req.Content,
+		Avatar:      req.Avatar,
+		GroupName:   req.GroupName,
+		GroupAvatar: req.GroupAvatar,
+		Timestamp:   time.Now().Unix(),
 	}
 
 	data, err := json.Marshal(msg)
