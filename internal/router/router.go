@@ -28,6 +28,7 @@ func RegisterRoutes(h *server.Hertz, cacheClient *cache.Cache, authHandler *auth
 	adminGroup := h.Group("/api/admin", middleware.AuthMiddleware(cacheClient), middleware.AdminMiddleware())
 	adminGroup.PUT("/users/:uid/role", adminHandler.UpdateRole)
 	adminGroup.DELETE("/users/:uid", adminHandler.DeleteUser)
+	adminGroup.POST("/quotes/trigger", adminHandler.TriggerAnalysis)
 	adminGroup.PUT("/quotes/:qid/featured", quoteHandler.SetFeatured)
 	adminGroup.DELETE("/quotes/:qid", quoteHandler.DeleteQuote)
 	adminGroup.DELETE("/speakers/:qqNumber", quoteHandler.DeleteSpeaker)

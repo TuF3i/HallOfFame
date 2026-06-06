@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	"HallOfFame/config"
@@ -16,6 +17,42 @@ import (
 	"github.com/cloudwego/eino/schema"
 	"github.com/google/uuid"
 )
+
+// 全局触发器，供手动触发使用
+var (
+	triggerMu     sync.Mutex
+	triggerCache  *cache.Cache
+	triggerDao    *dao.Dao
+	triggerModel  model.ChatModel
+	triggerConfig *config.LLMConf
+)
+
+// SetTrigger 注册全局触发器依赖
+func SetTrigger(c *cache.Cache, d *dao.Dao, chatModel model.ChatModel, cfg *config.LLMConf) {
+	triggerMu.Lock()
+	triggerCache = c
+	triggerDao = d
+	triggerModel = chatModel
+	triggerConfig = cfg
+	triggerMu.Unlock()
+}
+
+// Trigger 手动触发一次 AI 分析，导出供 handler 调用
+func Trigger(ctx context.Context) error {
+	triggerMu.Lock()
+	c := triggerCache
+	d := triggerDao
+	m := triggerModel
+	cfg := triggerConfig
+	triggerMu.Unlock()
+
+	if m == nil {
+		return fmt.Errorf("consumer: chat model not initialized")
+	}
+
+	processBatch(ctx, c, d, m, cfg)
+	return nil
+}
 
 // BotMsg 是 Redis 队列中消息的格式
 type BotMsg struct {
@@ -62,6 +99,9 @@ score是0-100的整数。
 
 // Start 启动后台 Consumer 协程，持续检查 Redis 队列并调用 LLM 分析
 func Start(ctx context.Context, c *cache.Cache, d *dao.Dao, chatModel model.ChatModel, cfg *config.LLMConf) {
+	// 注册全局触发器
+	SetTrigger(c, d, chatModel, cfg)
+
 	go func() {
 		ticker := time.NewTicker(10 * time.Second)
 		defer ticker.Stop()

@@ -3,6 +3,7 @@ package admin
 import (
 	"context"
 
+	"HallOfFame/internal/consumer"
 	"HallOfFame/internal/dto"
 
 	"github.com/cloudwego/hertz/pkg/app"
@@ -68,5 +69,13 @@ func (h *AdminHandler) DeleteUser(c context.Context, ctx *app.RequestContext) {
 		return
 	}
 
+	ctx.JSON(200, dto.SuccessResp(nil))
+}
+
+func (h *AdminHandler) TriggerAnalysis(c context.Context, ctx *app.RequestContext) {
+	if err := consumer.Trigger(c); err != nil {
+		ctx.JSON(200, dto.Error(dto.ErrInternal, err.Error()))
+		return
+	}
 	ctx.JSON(200, dto.SuccessResp(nil))
 }
