@@ -204,11 +204,37 @@
 
 **参数：** `?page=1&page_size=20`
 
-#### GET /api/quotes/attachments/:attachmentId
+#### GET /api/quotes/attachments/:qid/:attId
 
 获取附件图片。直接返回图片二进制（Content-Type: image/jpeg）。
 
 ### 管理接口 — 需 JWT + Admin 权限
+
+#### GET /api/admin/users
+
+获取用户列表。
+
+**参数：** `?page=1&page_size=20`
+
+**响应：**
+```json
+{
+  "code": 10200,
+  "data": {
+    "items": [
+      {
+        "uid": "uuid",
+        "email": "user@example.com",
+        "nickname": "nickname",
+        "role": "user"
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "page_size": 20
+  }
+}
+```
 
 #### PUT /api/admin/users/:uid/role
 
@@ -226,6 +252,28 @@
 #### DELETE /api/admin/users/:uid
 
 删除用户。
+
+#### POST /api/admin/quotes/trigger
+
+手动触发 AI 分析。立即弹出 Redis 队列全部消息 → 调用 LLM 分析 → 高性压抑度发言写入 MongoDB。异步执行，不阻塞调用方。
+
+#### GET /api/admin/quotes
+
+获取所有发言。
+
+**参数：** `?page=1&page_size=20`
+
+#### POST /api/admin/quotes
+
+新建发言（multipart/form-data）。
+
+| 字段 | 类型 | 必需 | 说明 |
+|------|------|------|------|
+| content | string | 是 | 发言内容 |
+| userdata | string | 是 | JSON: `{"qqnumber":"...","speaker":"...","avatar":"..."}` |
+| groupdata | string | 否 | JSON: `{"groupnumber":"...","groupname":"...","avatar":"..."}` |
+| suppression | float | 否 | 压抑值，默认 0 |
+| files | file[] | 否 | 附件图片 |
 
 #### PUT /api/admin/quotes/:qid/featured
 
@@ -246,22 +294,6 @@
 
 删除发言者及其所有发言（同时删除所有附件）。
 
-#### GET /api/admin/quotes
-
-获取所有发言。**参数：** `?page=1&page_size=20`
-
-#### POST /api/admin/quotes
-
-新建发言（multipart/form-data）。
-
-| 字段 | 类型 | 必需 | 说明 |
-|------|------|------|------|
-| content | string | 是 | 发言内容 |
-| userdata | string | 是 | JSON: `{"qqnumber":"...","speaker":"...","avatar":"..."}` |
-| groupdata | string | 否 | JSON: `{"groupnumber":"...","groupname":"...","avatar":"..."}` |
-| suppression | float | 否 | 压抑值，默认 0 |
-| files | file[] | 否 | 附件图片 |
-
 ---
 
 ## Bot API (端口 9090)
@@ -277,9 +309,11 @@
 {
   "qqgroup": "群号",
   "qqnumber": "发言者QQ号",
-  "speaker": "昵称",
+  "speaker": "发言者昵称",
   "content": "消息内容",
-  "avatar": "头像URL(可选)"
+  "avatar": "用户头像URL（可选）",
+  "groupname": "群名称（可选）",
+  "groupavatar": "群头像URL（可选）"
 }
 ```
 

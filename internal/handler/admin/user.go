@@ -2,12 +2,42 @@ package admin
 
 import (
 	"context"
+	"strconv"
 
 	"HallOfFame/internal/consumer"
 	"HallOfFame/internal/dto"
 
 	"github.com/cloudwego/hertz/pkg/app"
 )
+
+func (h *AdminHandler) ListUsers(c context.Context, ctx *app.RequestContext) {
+	page, _ := strconv.Atoi(ctx.Query("page"))
+	if page < 1 {
+		page = 1
+	}
+	pageSize, _ := strconv.Atoi(ctx.Query("page_size"))
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+
+	users, total, err := h.dao.ListUsers(c, page, pageSize)
+	if err != nil {
+		ctx.JSON(200, dto.Error(dto.ErrInternal, err.Error()))
+		return
+	}
+
+	items := make([]dto.UserInfo, len(users))
+	for i, u := range users {
+		items[i] = dto.UserToDTO(&u)
+	}
+
+	ctx.JSON(200, dto.SuccessResp(dto.PageResult[dto.UserInfo]{
+		Items:    items,
+		Total:    total,
+		Page:     page,
+		PageSize: pageSize,
+	}))
+}
 
 func (h *AdminHandler) UpdateRole(c context.Context, ctx *app.RequestContext) {
 	uid := ctx.Param("uid")
@@ -70,6 +100,35 @@ func (h *AdminHandler) DeleteUser(c context.Context, ctx *app.RequestContext) {
 	}
 
 	ctx.JSON(200, dto.SuccessResp(nil))
+}
+
+func (h *AdminHandler) ListLoginLogs(c context.Context, ctx *app.RequestContext) {
+	page, _ := strconv.Atoi(ctx.Query("page"))
+	if page < 1 {
+		page = 1
+	}
+	pageSize, _ := strconv.Atoi(ctx.Query("page_size"))
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+
+	logs, total, err := h.dao.ListLoginLogs(c, page, pageSize)
+	if err != nil {
+		ctx.JSON(200, dto.Error(dto.ErrInternal, "Failed to query login logs."))
+		return
+	}
+
+	items := make([]dto.LoginLogInfo, len(logs))
+	for i, log := range logs {
+		items[i] = dto.LoginLogToDTO(&log)
+	}
+
+	ctx.JSON(200, dto.SuccessResp(dto.PageResult[dto.LoginLogInfo]{
+		Items:    items,
+		Total:    total,
+		Page:     page,
+		PageSize: pageSize,
+	}))
 }
 
 func (h *AdminHandler) TriggerAnalysis(c context.Context, ctx *app.RequestContext) {

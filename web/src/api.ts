@@ -1,5 +1,11 @@
-import { mockGroups, mockLoginLogs, mockPeople, mockProfile, mockUsers } from "./mockData";
-import type { AdminUser, AuthTokens, GroupInfo, LoginLog, Profile, Quote } from "./types";
+import type { AdminUser, AuthTokens, LoginLog, Profile, Quote } from "./types";
+
+interface PageResult<T> {
+  items: T[];
+  total: number;
+  page: number;
+  page_size: number;
+}
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") ?? "";
 const REQUEST_TIMEOUT_MS = 8_000;
@@ -39,10 +45,6 @@ export const tokenStore = {
 };
 
 async function request<T>(path: string, init: RequestInit = {}, withAuth = false): Promise<T> {
-  if (!API_BASE_URL) {
-    throw new ApiError("API base URL is not configured.", 0);
-  }
-
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   const headers = new Headers(init.headers);
@@ -71,7 +73,13 @@ async function request<T>(path: string, init: RequestInit = {}, withAuth = false
       return undefined as T;
     }
 
-    return (await response.json()) as T;
+    const body = (await response.json()) as { code: number; msg: string; data: T };
+
+    if (body.code !== 10200) {
+      throw new ApiError(body.msg || "Business error.", body.code);
+    }
+
+    return body.data as T;
   } catch (error) {
     if (error instanceof ApiError) {
       throw error;
@@ -85,70 +93,78 @@ async function request<T>(path: string, init: RequestInit = {}, withAuth = false
   }
 }
 
-function delay<T>(value: T, ms = 260): Promise<T> {
-  return new Promise((resolve) => {
-    window.setTimeout(() => resolve(value), ms);
-  });
-}
 
-async function withFallback<T>(remote: () => Promise<T>, fallback: T): Promise<T> {
-  try {
-    return await remote();
-  } catch {
-    return delay(fallback);
-  }
-}
 
 export const api = {
-  async login(email: string, password: string): Promise<AuthTokens> {
-    const fallback = {
-      access_token: `preview.${btoa(`${email}:${password}`).slice(0, 18)}.token`,
-      refresh_token: "preview.refresh.token",
+  async login(email: string, password: string): Promise<{ tokens: AuthTokens; user: Profile }> {
+    const data = await request<{
+      access_token: string;
+      refresh_token?: string;
+      user: { uid: string; email: string; nickname: string; role: string };
+    }>("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    });
+    return {
+      tokens: { access_token: data.access_token, refresh_token: data.refresh_token },
+      user: data.user as Profile,
     };
-    return withFallback(
-      () =>
-        request<AuthTokens>("/auth/login", {
-          method: "POST",
-          body: JSON.stringify({ email, password }),
-        }),
-      fallback,
-    );
   },
 
-  async register(email: string, password: string, nickname: string): Promise<AuthTokens> {
-    return withFallback(
-      async () => {
-        await request<void>("/auth/register", {
-          method: "POST",
-          body: JSON.stringify({ email, password, nickname }),
-        });
-        return api.login(email, password);
-      },
-      {
-        access_token: `preview.${btoa(`${email}:${nickname}`).slice(0, 18)}.token`,
-        refresh_token: "preview.refresh.token",
-      },
-    );
-  },
-
-  async profile(): Promise<Profile> {
-    return withFallback(() => request<Profile>("/user/profile", {}, true), mockProfile);
+  async register(email: string, password: string, nickname: string): Promise<{ tokens: AuthTokens; user: Profile }> {
+    const data = await request<{
+      access_token: string;
+      refresh_token?: string;
+      uid: string;
+      email: string;
+      nickname: string;
+      role: string;
+    }>("/api/auth/register", {
+      method: "POST",
+      body: JSON.stringify({ email, password, nickname }),
+    });
+    return {
+      tokens: { access_token: data.access_token, refresh_token: data.refresh_token },
+      user: { uid: data.uid, email: data.email, nickname: data.nickname, role: data.role } as Profile,
+    };
   },
 
   async quotes(): Promise<Quote[]> {
-    const fallback = mockPeople.flatMap((person) => [person.featuredQuote, ...person.history]);
-    return withFallback(() => request<Quote[]>("/quotes?page=1&page_size=80"), fallback);
+    try {
+      const data = await request<PageResult<Quote>>("/api/admin/quotes?page=1&page_size=80", {}, true);
+      return data.items;
+    } catch {
+      const data = await request<PageResult<Quote>>("/api/quotes/featured?page=1&page_size=80", {}, true);
+      return data.items;
+    }
   },
 
-  async groups(): Promise<GroupInfo[]> {
-    return withFallback(() => request<GroupInfo[]>("/groups"), mockGroups);
+  async adminUsers(page = 1, pageSize = 20): Promise<PageResult<AdminUser>> {
+    return request<PageResult<AdminUser>>(`/api/admin/users?page=${page}&page_size=${pageSize}`, {}, true);
   },
 
-  async adminUsers(): Promise<AdminUser[]> {
-    return withFallback(() => request<AdminUser[]>("/admin/users", {}, true), mockUsers);
+  async updateUserRole(uid: string, role: string): Promise<void> {
+    await request<void>(`/api/admin/users/${uid}/role`, {
+      method: "PUT",
+      body: JSON.stringify({ role }),
+    }, true);
   },
 
   async loginLogs(): Promise<LoginLog[]> {
-    return withFallback(() => request<LoginLog[]>("/admin/login-logs?page=1&page_size=30", {}, true), mockLoginLogs);
+    const data = await request<PageResult<LoginLog>>("/api/admin/login-logs?page=1&page_size=30", {}, true);
+    return data.items;
+  },
+
+  async toggleFeaturedQuote(qid: string, featured: boolean): Promise<void> {
+    await request<void>(`/api/admin/quotes/${qid}/featured`, {
+      method: "PUT",
+      body: JSON.stringify({ featured }),
+    }, true);
+  },
+
+  async deleteQuote(qid: string): Promise<void> {
+    await request<void>(`/api/admin/quotes/${qid}`, {
+      method: "DELETE",
+    }, true);
   },
 };

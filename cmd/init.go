@@ -33,7 +33,7 @@ var initDBCmd = &cobra.Command{
 			log.Fatalf("failed to connect postgres: %v", err)
 		}
 
-		if err := pgClient.Client.AutoMigrate(&models.User{}); err != nil {
+		if err := pgClient.Client.AutoMigrate(&models.User{}, &models.LoginLog{}); err != nil {
 			log.Fatalf("failed to auto migrate: %v", err)
 		}
 		log.Println("PostgreSQL tables initialized successfully")

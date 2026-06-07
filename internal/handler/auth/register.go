@@ -13,6 +13,8 @@ import (
 	"gorm.io/gorm"
 )
 
+const minPasswordLength = 5
+
 func (h *AuthHandler) Register(c context.Context, ctx *app.RequestContext) {
 	var req dto.RegisterReq
 	if err := ctx.BindAndValidate(&req); err != nil {
@@ -28,6 +30,12 @@ func (h *AuthHandler) Register(c context.Context, ctx *app.RequestContext) {
 	}
 	if err != gorm.ErrRecordNotFound {
 		ctx.JSON(200, dto.Error(dto.ErrInternal, err.Error()))
+		return
+	}
+
+	// Validate password length
+	if len(req.Password) < minPasswordLength {
+		ctx.JSON(200, dto.Error(dto.ErrBadRequest, "password must be at least 5 characters"))
 		return
 	}
 

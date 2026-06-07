@@ -165,6 +165,27 @@ components:
         data:
           $ref: "#/components/schemas/UserInfo"
 
+    UserPageResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+        msg:
+          type: string
+        data:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/UserInfo"
+            total:
+              type: integer
+            page:
+              type: integer
+            page_size:
+              type: integer
+
     # 请求 Schema
     RegisterRequest:
       type: object
@@ -473,6 +494,32 @@ paths:
                 format: binary
 
   # ═══════════════ Admin（需 JWT + Admin） ═══════════════
+  /api/admin/users:
+    get:
+      tags: [Admin]
+      summary: 获取用户列表
+      operationId: listUsers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: 操作结果
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPageResponse"
+
   /api/admin/users/{uid}/role:
     put:
       tags: [Admin]

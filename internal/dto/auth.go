@@ -1,6 +1,7 @@
 package dto
 
 import (
+	"strconv"
 	"strings"
 
 	"HallOfFame/internal/models"
@@ -49,6 +50,24 @@ type UserInfo struct {
 type RefreshResp struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
+}
+
+type LoginLogInfo struct {
+	ID     string `json:"id"`
+	At     string `json:"at"`
+	Email  string `json:"email"`
+	IP     string `json:"ip"`
+	Result string `json:"result"`
+}
+
+func LoginLogToDTO(log *models.LoginLog) LoginLogInfo {
+	return LoginLogInfo{
+		ID:     strconv.FormatInt(log.ID, 10),
+		At:     log.CreatedAt.Format("15:04:05"),
+		Email:  log.Email,
+		IP:     log.IP,
+		Result: log.Result,
+	}
 }
 
 // UserToDTO converts a models.User to a UserInfo DTO.

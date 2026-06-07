@@ -13,6 +13,7 @@ import (
 	"HallOfFame/internal/handler/bot"
 	"HallOfFame/internal/handler/quote"
 	"HallOfFame/internal/llm"
+	"HallOfFame/internal/middleware"
 	"HallOfFame/internal/router"
 
 	"github.com/cloudwego/hertz/pkg/app/server"
@@ -22,6 +23,7 @@ func (e *Engine) Start(ctx context.Context, cfg *config.Config, authHandler *aut
 	// 启动主 Web API Server
 	addr := fmt.Sprintf("%s:%d", cfg.HertzConf.ListenAddr, cfg.HertzConf.WebApiListerPort)
 	h := server.New(server.WithHostPorts(addr))
+	h.Use(middleware.CORSHandler())
 
 	router.RegisterRoutes(h, e.Cache, authHandler, adminHandler, quoteHandler)
 

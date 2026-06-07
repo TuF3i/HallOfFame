@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"HallOfFame/internal/dto"
+	"HallOfFame/internal/models"
 	pkgjwt "HallOfFame/pkg/jwt"
 
 	"github.com/cloudwego/hertz/pkg/app"
@@ -21,6 +22,13 @@ func (h *AuthHandler) Login(c context.Context, ctx *app.RequestContext) {
 	// Query user by email
 	user, err := h.dao.GetUser(c, req.Email)
 	if err != nil {
+		// Record failed login
+		h.dao.AddLoginLog(c, &models.LoginLog{
+			Email:  req.Email,
+			IP:     ctx.ClientIP(),
+			Result: "failed",
+		})
+
 		if err == gorm.ErrRecordNotFound {
 			ctx.JSON(200, dto.Error(dto.ErrUnauthorized, "invalid email or password"))
 			return
@@ -31,15 +39,37 @@ func (h *AuthHandler) Login(c context.Context, ctx *app.RequestContext) {
 
 	// Verify password
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
+		// Record failed login
+		h.dao.AddLoginLog(c, &models.LoginLog{
+			Email:  req.Email,
+			IP:     ctx.ClientIP(),
+			Result: "failed",
+		})
+
 		ctx.JSON(200, dto.Error(dto.ErrUnauthorized, "invalid email or password"))
 		return
 	}
 
 	// Check if account is banned
 	if user.Role == "banned" {
+		// Record failed login
+		h.dao.AddLoginLog(c, &models.LoginLog{
+			Email:  req.Email,
+			IP:     ctx.ClientIP(),
+			Result: "failed",
+		})
+
 		ctx.JSON(200, dto.Error(dto.ErrForbidden, "account has been banned"))
 		return
 	}
+
+	// Record successful login
+	h.dao.AddLoginLog(c, &models.LoginLog{
+		Uid:    user.Uid,
+		Email:  user.Email,
+		IP:     ctx.ClientIP(),
+		Result: "success",
+	})
 
 	// Generate tokens
 	accessToken, refreshToken, err := pkgjwt.GenerateTokens(user.Uid, user.Role)

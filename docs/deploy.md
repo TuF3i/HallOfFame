@@ -29,7 +29,8 @@ HallOfFame 运行时需要以下外部服务：
   "redisConf": {
     "addr": "localhost",
     "port": 6379,
-    "password": ""
+    "password": "",
+    "db": 0
   },
   "mongoDBConf": {
     "addr": "localhost",
@@ -101,12 +102,15 @@ docker run -d --name etcd -p 2379:2379 bitnami/etcd:3
 etcdctl put /halloffame/config "$(cat config/config.json)"
 ```
 
-### 2. 初始化 PostgreSQL 数据库
-
-用超级用户创建数据库和用户：
+### 2. 初始化 PostgreSQL
 
 ```bash
+# 创建用户与数据库
 psql -U postgres -f sql/init_db.sql
+psql -U postgres -f sql/init_user.sql
+
+# 创建管理员用户
+psql -U postgres -d halloffame -f sql/init_admin.sql
 ```
 
 ### 3. 构建

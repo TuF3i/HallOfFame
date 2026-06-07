@@ -8,25 +8,36 @@ export interface AuthTokens {
 }
 
 export interface Profile {
-  id: number;
+  uid: string;
   email: string;
   nickname: string;
   role: "user" | "admin" | "banned" | string;
 }
 
 export interface Quote {
-  id: string;
-  qq_group: string;
-  speaker: string;
+  qid: string;
   content: string;
-  created_at: string;
+  suppression: number;
+  userdata: {
+    qqnumber: string;
+    speaker: string;
+    avatar?: string;
+  };
+  groupdata: {
+    groupnumber: string;
+    groupname?: string;
+    avatar?: string;
+  };
+  attachmentid: string[];
   is_featured: boolean;
-  image_url?: string;
+  created_at?: string;
 }
 
 export interface QuotePerson {
   id: string;
   name: string;
+  qqnumber: string;
+  quoteCount: number;
   qqGroup: string;
   role: string;
   signal: string;
@@ -35,16 +46,8 @@ export interface QuotePerson {
   history: Quote[];
 }
 
-export interface GroupInfo {
-  id: string;
-  name: string;
-  member_count: number;
-  quote_count: number;
-  sync_status: "online" | "syncing" | "offline";
-}
-
 export interface AdminUser {
-  id: number;
+  uid: string;
   email: string;
   nickname: string;
   role: "user" | "admin" | "banned";

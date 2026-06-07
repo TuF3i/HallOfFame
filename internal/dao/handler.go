@@ -78,6 +78,22 @@ func (r *Dao) UpdateUserRole(ctx context.Context, uid string, role string) error
 	return r.PostgresClient.Client.Where("uid = ?", uid).Updates(&models.User{Role: role}).WithContext(ctx).Error
 }
 
+func (r *Dao) AddLoginLog(ctx context.Context, log *models.LoginLog) error {
+	return r.PostgresClient.Client.WithContext(ctx).Create(log).Error
+}
+
+func (r *Dao) ListLoginLogs(ctx context.Context, page, pageSize int) ([]models.LoginLog, int64, error) {
+	var total int64
+	r.PostgresClient.Client.Model(&models.LoginLog{}).Count(&total).WithContext(ctx)
+	var logs []models.LoginLog
+	err := r.PostgresClient.Client.WithContext(ctx).
+		Offset((page - 1) * pageSize).
+		Limit(pageSize).
+		Order("id DESC").
+		Find(&logs).Error
+	return logs, total, err
+}
+
 func (r *Dao) AddQuote(ctx context.Context, quoteInfo *models.Quotes) error {
 	_, err := r.MongoClient.Database.Collection(consts.QuotesCollection).InsertOne(ctx, quoteInfo)
 	if err != nil {

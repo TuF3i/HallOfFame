@@ -40,7 +40,7 @@ var serverCmd = &cobra.Command{
 		if err != nil {
 			log.Fatalf("failed to init postgres: %v", err)
 		}
-		if err := pgClient.Client.AutoMigrate(&models.User{}); err != nil {
+		if err := pgClient.Client.AutoMigrate(&models.User{}, &models.LoginLog{}); err != nil {
 			log.Fatalf("failed to auto migrate: %v", err)
 		}
 

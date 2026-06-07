@@ -61,7 +61,6 @@ cmd/
   root.go            — 根命令 + 从 etcd 加载配置
   server.go          — HallOfFame server 命令
   init.go            — HallOfFame init db / init minio
-  minio.go           — MinIO 初始化辅助
 
 config/
   config.go          — 配置结构体定义
@@ -76,32 +75,37 @@ inferstructure/
   etcd/              — Etcd 客户端
 
 internal/
-  models/            — 数据模型
-  dto/               — 响应结构体 + 错误码
-  dao/               — 数据访问层
-  cache/             — 缓存层（Redis 操作）
+  models/            — 数据模型（User / Quotes / UserMeta / GroupData）
+  dto/               — 请求/响应结构体 + 错误码
+  dao/               — 数据访问层（PG + MongoDB）
+  cache/             — 缓存层（Redis 操作 + 消息队列）
   storage/           — 文件存储层（MinIO 操作）
   handler/
     auth/            — 注册/登录/刷新 JWT
-    admin/           — 用户管理（改角色/删除）
-    quote/           — 金句管理（CRUD + 精华）
+    admin/           — 用户管理（列表/改角色/删除 + AI trigger）
+    quote/           — 金句管理（CRUD + 精华 + 附件）
     bot/             — QQ Bot 消息上传
   middleware/        — JWT 鉴权 + Admin 鉴权
-  router/            — 路由注册
+  router/            — 路由注册（Web API + Bot API）
   engine/            — Hertz Server 启动 + Consumer 启动
-  llm/               — Eino ChatModel 工厂
+  llm/               — Eino ChatModel 工厂（多 Provider）
   consumer/          — 后台 AI 分析协程
 
 pkg/
   jwt/               — JWT 生成与解析
   redisKeygen/       — Redis Key 生成
-  consts/            — 常量
+  consts/            — 常量（Collection 名称等）
 
 sql/
-  init_db.sql        — PostgreSQL 数据库/用户初始化
+  init_db.sql        — PostgreSQL 数据库创建
+  init_user.sql      — PostgreSQL 用户创建
+  init_admin.sql     — 创建默认管理员
 
 docs/
   overview.md        — 本文
   deploy.md          — 部署指南
   api.md             — API 接口文档
+
+api/
+  openapi.yaml       — OpenAPI 3.0 规范
 ```
