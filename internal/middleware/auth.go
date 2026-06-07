@@ -14,13 +14,20 @@ import (
 func AuthMiddleware(cacheClient *cache.Cache) app.HandlerFunc {
 	return func(ctx context.Context, c *app.RequestContext) {
 		authHeader := string(c.GetHeader("Authorization"))
-		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
+		tokenStr := ""
+
+		if authHeader != "" && strings.HasPrefix(authHeader, "Bearer ") {
+			tokenStr = strings.TrimPrefix(authHeader, "Bearer ")
+		} else {
+			// Also check query parameter for token (used by img tags)
+			tokenStr = c.Query("token")
+		}
+
+		if tokenStr == "" {
 			c.JSON(200, dto.Error(dto.ErrUnauthorized, "missing or invalid authorization header"))
 			c.Abort()
 			return
 		}
-
-		tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
 
 		claims, err := pkgjwt.ParseToken(tokenStr)
 		if err != nil {

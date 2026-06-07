@@ -3,6 +3,7 @@ package minio
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -54,8 +55,9 @@ func NewClient(opts ...opt) (*MinioClient, error) {
 		opt(conf)
 	}
 
+	endpoint := fmt.Sprintf("%s:%d", conf.addr, conf.port)
 	client, err := minio.New(
-		conf.addr,
+		endpoint,
 		&minio.Options{
 			Creds: credentials.NewStaticV4(
 				conf.username,

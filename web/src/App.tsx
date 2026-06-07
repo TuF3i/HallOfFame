@@ -1,16 +1,19 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, Dispatch, FocusEvent, FormEvent, SetStateAction } from "react";
 import {
   Archive,
   ChevronLeft,
   ChevronRight,
   CircleDot,
+  Eye,
+  FileText,
   KeyRound,
   LayoutDashboard,
   Lock,
   Mail,
   MousePointer2,
   Palette,
+  Plus,
   Power,
   RefreshCcw,
   Search,
@@ -22,12 +25,14 @@ import {
   Trash2,
   User,
   UserPlus,
+  Users,
   X,
 } from "lucide-react";
 import { api, tokenStore } from "./api";
 import { FluidShader } from "./components/FluidShader";
 import { GeometricPortrait } from "./components/GeometricPortrait";
-import type { AdminUser, AuthMode, AuthTokens, LoginLog, Profile, Quote, QuotePerson, View } from "./types";
+
+import type { AdminUser, AuthMode, AuthTokens, LoginLog, Profile, Quote, QuotePerson, Speaker, View } from "./types";
 
 const views: View[] = ["auth", "archive", "admin"];
 const navViews: Array<{ id: Exclude<View, "auth">; label: string; icon: typeof KeyRound }> = [
@@ -296,6 +301,16 @@ function createPeopleFromQuotes(quotes: Quote[]): QuotePerson[] {
     });
 }
 
+function parseJwtExpiry(token: string): number | null {
+  try {
+    const payload = token.split(".")[1];
+    const decoded = JSON.parse(atob(payload));
+    return decoded.exp ? decoded.exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
 function App() {
   const [view, setView] = useState<View>(getInitialView);
   const [profile, setProfile] = useState<Profile | null>(() => {
@@ -315,6 +330,7 @@ function App() {
   const [appSettings, setAppSettings] = useState<AppSettings>(loadAppSettings);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [sessionExpired, setSessionExpired] = useState(false);
   const appShellRef = useRef<HTMLElement | null>(null);
   const people = useMemo(() => createPeopleFromQuotes(quotes), [quotes]);
   const featuredQuoteIds = useMemo(() => getFeaturedQuoteIds(quotes), [quotes]);
@@ -437,6 +453,52 @@ function App() {
     }
   }, [appSettings]);
 
+  // Token refresh mechanism
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      setSessionExpired(true);
+    };
+
+    window.addEventListener("hof:session-expired", handleSessionExpired);
+
+    const tokens = tokenStore.read();
+    if (!tokens?.access_token) {
+      window.removeEventListener("hof:session-expired", handleSessionExpired);
+      return;
+    }
+
+    const expiry = parseJwtExpiry(tokens.access_token);
+    if (!expiry) {
+      window.removeEventListener("hof:session-expired", handleSessionExpired);
+      return;
+    }
+
+    // Refresh 5 minutes before expiry, or immediately if already expired
+    const msUntilRefresh = Math.max(0, expiry - Date.now() - 5 * 60 * 1000);
+
+    const refreshTimer = window.setTimeout(async () => {
+      if (!tokens.refresh_token) {
+        // No refresh token available, session expired
+        setSessionExpired(true);
+        return;
+      }
+
+      try {
+        const newTokens = await api.refreshToken(tokens.refresh_token);
+        tokenStore.write(newTokens);
+        setSessionExpired(false);
+      } catch {
+        // Refresh failed, session expired
+        setSessionExpired(true);
+      }
+    }, msUntilRefresh);
+
+    return () => {
+      window.removeEventListener("hof:session-expired", handleSessionExpired);
+      window.clearTimeout(refreshTimer);
+    };
+  }, [profile]);
+
   const handleAuthenticated = (result: { tokens: AuthTokens; user: Profile }) => {
     tokenStore.write(result.tokens);
     try {
@@ -534,6 +596,29 @@ function App() {
             onCursorSettingsChange={setCursorSettings}
             onClose={() => setSettingsOpen(false)}
           />
+        )}
+        {sessionExpired && (
+          <div className="modal-backdrop" role="dialog" aria-modal="true">
+            <div className="modal-panel" style={{ textAlign: "center", padding: "32px" }}>
+              <h2 style={{ margin: "0 0 12px", fontSize: "1.6rem" }}>登录已过期</h2>
+              <p style={{ margin: "0 0 24px", fontSize: "0.9rem", color: "rgba(8,8,8,0.62)" }}>
+                您的登录会话已过期，请重新登录以继续使用。
+              </p>
+              <button
+                className="primary-action"
+                type="button"
+                onClick={() => {
+                  tokenStore.clear();
+                  try { window.localStorage.removeItem(PROFILE_STORAGE_KEY); } catch {}
+                  setSessionExpired(false);
+                  setView("auth");
+                }}
+                style={{ width: "auto", padding: "0 32px", marginTop: 0 }}
+              >
+                <span>重新登录</span>
+              </button>
+            </div>
+          </div>
         )}
       </main>
     </>
@@ -856,10 +941,21 @@ function ArchivePage({
   onToggleFeaturedQuote,
 }: ArchivePageProps) {
   const [selectedId, setSelectedId] = useState(people[0]?.id ?? "");
+  const [selectedFeatured, setSelectedFeatured] = useState(false);
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyPage, setHistoryPage] = useState(0);
+  const [detailQuote, setDetailQuote] = useState<Quote | null>(null);
+  const [imageModalUrl, setImageModalUrl] = useState<string | null>(null);
   const previewTimerRef = useRef<number | null>(null);
+
+  const handleViewDetail = useCallback((quote: Quote) => {
+    setDetailQuote((current) => (current?.qid === quote.qid ? null : quote));
+  }, []);
+
+  const handleCloseImageModal = useCallback(() => {
+    setImageModalUrl(null);
+  }, []);
 
   useEffect(() => {
     if (!people.some((person) => person.id === selectedId)) {
@@ -874,7 +970,7 @@ function ArchivePage({
   useEffect(() => {
     setHistoryPage(0);
     setHistoryOpen(false);
-  }, [selectedId]);
+  }, [selectedId, selectedFeatured]);
 
   useEffect(() => {
     return () => {
@@ -911,6 +1007,20 @@ function ArchivePage({
   function selectPerson(personId: string) {
     clearPackPreview();
     setSelectedId(personId);
+    setSelectedFeatured(false);
+  }
+
+  function selectFeatured() {
+    clearPackPreview();
+    if (selectedFeatured) {
+      // Deselect featured - no card selected
+      setSelectedFeatured(false);
+      setSelectedId("");
+    } else {
+      // Select featured - clear person selection
+      setSelectedFeatured(true);
+      setSelectedId("");
+    }
   }
 
   function handlePackBlur(event: FocusEvent<HTMLDivElement>) {
@@ -924,6 +1034,11 @@ function ArchivePage({
     [people, selectedId],
   );
 
+  const featuredQuotes = useMemo(
+    () => people.flatMap((person) => person.history.filter((q) => q.is_featured)),
+    [people],
+  );
+
   if (!people.length) {
     return (
       <section className="archive-page" aria-labelledby="archive-title">
@@ -932,7 +1047,7 @@ function ArchivePage({
     );
   }
 
-  const historyRows = selected.history;
+  const historyRows = selectedFeatured ? featuredQuotes : (selected?.history ?? []);
   const visibleHistoryRows = historyRows.slice(0, HISTORY_PAGE_SIZE);
   const historyPageCount = getPageCount(historyRows.length, HISTORY_PAGE_SIZE);
   const pagedHistoryRows = historyRows.slice(historyPage * HISTORY_PAGE_SIZE, (historyPage + 1) * HISTORY_PAGE_SIZE);
@@ -954,14 +1069,28 @@ function ArchivePage({
             onFocusCapture={() => setPreviewId(people[0]?.id ?? null)}
             onBlurCapture={handlePackBlur}
           >
+            <button
+              type="button"
+              className={["pack-card", "is-featured-card", selectedFeatured ? "is-selected" : ""]
+                .filter(Boolean)
+                .join(" ")}
+              onClick={selectFeatured}
+            >
+              <div className="pack-card-body">
+                <strong>精华</strong>
+                <div className="pack-card-meta">
+                  <small>精选合集</small>
+                </div>
+              </div>
+            </button>
             {people.map((person, index) => (
               <button
                 type="button"
                 key={person.id}
                 className={[
                   "pack-card",
-                  person.id === selected.id ? "is-selected" : "",
-                  previewId === person.id && person.id !== selected.id ? "is-previewed" : "",
+                  !selectedFeatured && person.id === selectedId ? "is-selected" : "",
+                  previewId === person.id && person.id !== selectedId ? "is-previewed" : "",
                 ]
                   .filter(Boolean)
                   .join(" ")}
@@ -985,9 +1114,12 @@ function ArchivePage({
           <section className="quote-card-section portrait-section">
             <GeometricPortrait person={selected} />
             <div className="person-meta">
-              <small>QQ: {selected.qqnumber}</small>
-              <small>{selected.quoteCount} 条发言</small>
-              <h2>{selected.name}</h2>
+              <h2 className="nickname-box">{selected.name}</h2>
+              <div className="person-stats">
+                <span className="badge">QQ: {selected.qqnumber}</span>
+                <span className="badge">{selected.quoteCount} 条发言</span>
+              </div>
+              <span className="badge">{selected.qqGroup}</span>
             </div>
           </section>
           <section className="quote-card-section history-section">
@@ -1001,6 +1133,8 @@ function ArchivePage({
               canManageFeatured={false}
               featuredQuoteIds={featuredQuoteIds}
               onToggleFeaturedQuote={onToggleFeaturedQuote}
+              onViewDetail={handleViewDetail}
+              activeDetailQid={detailQuote?.qid ?? null}
             />
           </section>
           {historyOpen && (
@@ -1024,6 +1158,8 @@ function ArchivePage({
                 canManageFeatured={canManageFeatured}
                 featuredQuoteIds={featuredQuoteIds}
                 onToggleFeaturedQuote={onToggleFeaturedQuote}
+                onViewDetail={handleViewDetail}
+                activeDetailQid={detailQuote?.qid ?? null}
               />
               <Pagination
                 page={historyPage}
@@ -1034,7 +1170,101 @@ function ArchivePage({
             </section>
           )}
         </article>
+        <div className="detail-panel" aria-label="言论详情">
+          {detailQuote ? (
+            <>
+              <div className="detail-panel-header">DETAIL</div>
+              <div className="detail-panel-body">
+                <table className="detail-table">
+                  <tbody>
+                    <tr>
+                      <td className="detail-table-label">QQ</td>
+                      <td>{detailQuote.userdata?.qqnumber}</td>
+                    </tr>
+                    <tr>
+                      <td className="detail-table-label">昵称</td>
+                      <td>{detailQuote.userdata?.speaker}</td>
+                    </tr>
+                    <tr>
+                      <td className="detail-table-label">群号</td>
+                      <td>{detailQuote.groupdata?.groupnumber}</td>
+                    </tr>
+                    <tr>
+                      <td className="detail-table-label">群名</td>
+                      <td>{detailQuote.groupdata?.groupname || "—"}</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div className="detail-field">
+                  <span className="detail-field-title">抑郁度</span>
+                  <div className="detail-suppression-bar-segmented">
+                    <div className="detail-suppression-segment" style={{ opacity: detailQuote.suppression >= 20 ? 0.4 : 0.12 }} />
+                    <div className="detail-suppression-segment" style={{ opacity: detailQuote.suppression >= 45 ? 0.6 : 0.12 }} />
+                    <div className="detail-suppression-segment" style={{ opacity: detailQuote.suppression >= 70 ? 0.8 : 0.12 }} />
+                    <div className="detail-suppression-segment" style={{ opacity: detailQuote.suppression >= 95 ? 1 : 0.12 }} />
+                  </div>
+                  <span className="detail-suppression-label">{detailQuote.suppression}%</span>
+                </div>
+                {detailQuote.content ? (
+                  <div className="detail-field">
+                    <span className="detail-field-title">内容</span>
+                    <p className="detail-content">{detailQuote.content}</p>
+                  </div>
+                ) : null}
+                {detailQuote.ai_comment ? (
+                  <div className="detail-field">
+                    <span className="detail-field-title">AI 评论</span>
+                    <div className="detail-panel-ai">
+                      <p>{detailQuote.ai_comment}</p>
+                    </div>
+                  </div>
+                ) : null}
+                {detailQuote.attachmentid?.length > 0 ? (
+                  <div className="detail-field">
+                    <span className="detail-field-title">附件</span>
+                    <div className="detail-thumbnails">
+                      {detailQuote.attachmentid.map((attId) => (
+                        <button
+                          key={attId}
+                          type="button"
+                          className="detail-thumb"
+                          onClick={() => setImageModalUrl(api.getQuoteAttachment(detailQuote.qid, attId))}
+                        >
+                          <img
+                            src={api.getQuoteAttachment(detailQuote.qid, attId)}
+                            alt={`附件 ${attId}`}
+                            loading="lazy"
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </>
+          ) : (
+            <div className="detail-empty">未选择任何言论</div>
+          )}
+        </div>
       </div>
+      {imageModalUrl && (
+        <div className="image-modal" role="dialog" aria-modal="true" onClick={handleCloseImageModal}>
+          <button
+            className="image-modal-close"
+            type="button"
+            onClick={handleCloseImageModal}
+            aria-label="关闭图片"
+          >
+            <X size={24} />
+          </button>
+          <img
+            className="image-modal-content"
+            src={imageModalUrl}
+            alt="附件大图"
+            onClick={(event) => event.stopPropagation()}
+          />
+        </div>
+      )}
     </section>
   );
 }
@@ -1044,9 +1274,11 @@ interface HistoryRowsProps {
   canManageFeatured: boolean;
   featuredQuoteIds: string[];
   onToggleFeaturedQuote: (quoteId: string) => void;
+  onViewDetail: (quote: Quote) => void;
+  activeDetailQid: string | null;
 }
 
-function HistoryRows({ rows, canManageFeatured, featuredQuoteIds, onToggleFeaturedQuote }: HistoryRowsProps) {
+function HistoryRows({ rows, canManageFeatured, featuredQuoteIds, onToggleFeaturedQuote, onViewDetail, activeDetailQid }: HistoryRowsProps) {
   if (!rows.length) {
     return <div className="empty-state">暂无历史言论</div>;
   }
@@ -1061,19 +1293,29 @@ function HistoryRows({ rows, canManageFeatured, featuredQuoteIds, onToggleFeatur
           <div className={canManageFeatured ? "history-row history-row-manage" : "history-row"} key={item.qid}>
             <span className="speaker">{item.userdata?.speaker}</span>
             <span className="group">{item.groupdata?.groupnumber}</span>
-            <p className="history-row-content">{item.content}</p>
-            {canManageFeatured && (
+            <p className="history-row-content">{item.is_featured ? "★ " : ""}{item.content}</p>
+            <div className="history-row-actions">
               <button
-                className={isFeatured ? "feature-toggle is-on" : "feature-toggle"}
+                className={activeDetailQid === item.qid ? "detail-toggle is-active" : "detail-toggle"}
                 type="button"
-                disabled={limitReached}
-                aria-pressed={isFeatured}
-                aria-label={isFeatured ? "取消精华" : "设为精华"}
-                onClick={() => onToggleFeaturedQuote(item.qid)}
+                aria-label="查看详情"
+                onClick={() => onViewDetail(item)}
               >
-                <Star size={14} />
+                <Eye size={14} />
               </button>
-            )}
+              {canManageFeatured && (
+                <button
+                  className={isFeatured ? "feature-toggle is-on" : "feature-toggle"}
+                  type="button"
+                  disabled={limitReached}
+                  aria-pressed={isFeatured}
+                  aria-label={isFeatured ? "取消精华" : "设为精华"}
+                  onClick={() => onToggleFeaturedQuote(item.qid)}
+                >
+                  <Star size={14} />
+                </button>
+              )}
+            </div>
           </div>
         );
       })}
@@ -1134,9 +1376,32 @@ function AdminDashboard({
   onDeleteQuote,
   onUserChange,
 }: AdminDashboardProps) {
+  const [adminTab, setAdminTab] = useState(0);
   const [quoteQuery, setQuoteQuery] = useState("");
   const [quotePage, setQuotePage] = useState(0);
   const canManageQuotes = profile?.role === "admin";
+
+  // Create quote modal state
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createContent, setCreateContent] = useState("");
+  const [createQqnumber, setCreateQqnumber] = useState("");
+  const [createSpeaker, setCreateSpeaker] = useState("");
+  const [createGroupnumber, setCreateGroupnumber] = useState("");
+  const [createGroupname, setCreateGroupname] = useState("");
+  const [createSuppression, setCreateSuppression] = useState(0);
+  const [createFiles, setCreateFiles] = useState<FileList | null>(null);
+  const [createSubmitting, setCreateSubmitting] = useState(false);
+  const [createError, setCreateError] = useState("");
+
+  // Detail modal state
+  const [detailQuote, setDetailQuote] = useState<Quote | null>(null);
+
+  // Speaker management state
+  const [speakers, setSpeakers] = useState<Speaker[]>([]);
+  const [speakerPage, setSpeakerPage] = useState(0);
+  const [speakerTotal, setSpeakerTotal] = useState(0);
+  const [selectedSpeaker, setSelectedSpeaker] = useState<Speaker | null>(null);
+  const SPEAKER_PAGE_SIZE = 50;
 
   const filteredQuotes = useMemo(() => {
     const query = quoteQuery.trim().toLowerCase();
@@ -1158,6 +1423,97 @@ function AdminDashboard({
     setQuotePage(0);
   }, [quoteQuery]);
 
+  // Load speakers when tab changes to speakers
+  useEffect(() => {
+    if (adminTab !== 2) {
+      return;
+    }
+
+    let isActive = true;
+
+    async function loadSpeakers() {
+      try {
+        const result = await api.listSpeakers(speakerPage + 1, SPEAKER_PAGE_SIZE);
+        if (!isActive) {
+          return;
+        }
+        setSpeakers(result.items);
+        setSpeakerTotal(result.total);
+      } catch {
+        // Keep empty state
+      }
+    }
+
+    void loadSpeakers();
+
+    return () => {
+      isActive = false;
+    };
+  }, [adminTab, speakerPage]);
+
+  async function handleCreateQuote(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setCreateError("");
+
+    if (!createContent.trim()) {
+      setCreateError("内容不能为空");
+      return;
+    }
+
+    if (!createQqnumber.trim() || !createSpeaker.trim()) {
+      setCreateError("QQ号和昵称不能为空");
+      return;
+    }
+
+    setCreateSubmitting(true);
+    try {
+      const formData = new FormData();
+      formData.append("content", createContent);
+      formData.append("userdata", JSON.stringify({
+        qqnumber: createQqnumber,
+        speaker: createSpeaker,
+      }));
+      formData.append("groupdata", JSON.stringify({
+        groupnumber: createGroupnumber,
+        groupname: createGroupname,
+      }));
+      formData.append("suppression", String(createSuppression));
+      if (createFiles) {
+        for (let i = 0; i < createFiles.length; i++) {
+          formData.append("files", createFiles[i]);
+        }
+      }
+      await api.createQuote(formData);
+      setShowCreateModal(false);
+      resetCreateForm();
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : "创建失败");
+    } finally {
+      setCreateSubmitting(false);
+    }
+  }
+
+  function resetCreateForm() {
+    setCreateContent("");
+    setCreateQqnumber("");
+    setCreateSpeaker("");
+    setCreateGroupnumber("");
+    setCreateGroupname("");
+    setCreateSuppression(0);
+    setCreateFiles(null);
+    setCreateError("");
+  }
+
+  async function handleDeleteSpeaker(qqNumber: string) {
+    try {
+      await api.deleteSpeaker(qqNumber);
+      setSpeakers((prev) => prev.filter((s) => s.qqnumber !== qqNumber));
+    } catch {
+      // Deletion failed
+    }
+  }
+
+  
   return (
     <section className="admin-page" aria-labelledby="admin-title">
       <div className="admin-head">
@@ -1171,98 +1527,412 @@ function AdminDashboard({
         </div>
       </div>
 
-      <div className="admin-grid" aria-busy={loading}>
-        <div className="admin-column admin-main-column">
-          <section className="panel table-panel quote-table-panel">
-            <PanelTitle icon={Archive} title="言论库" action="SYNC" />
-            <div className="admin-table-tools">
-              <label className="admin-search">
-                <Search size={15} />
-                <input
-                  value={quoteQuery}
-                  placeholder="Search speaker / q-id"
-                  onChange={(event) => setQuoteQuery(event.target.value)}
+      <div className="admin-layout" aria-busy={loading}>
+        <div className="admin-sidebar" role="tablist" aria-label="管理面板">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={adminTab === 0}
+            className={adminTab === 0 ? "admin-sidebar-item is-active" : "admin-sidebar-item"}
+            onClick={() => setAdminTab(0)}
+          >
+            <Archive size={18} />
+            <span>言论库</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={adminTab === 1}
+            className={adminTab === 1 ? "admin-sidebar-item is-active" : "admin-sidebar-item"}
+            onClick={() => setAdminTab(1)}
+          >
+            <User size={18} />
+            <span>用户列表</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={adminTab === 2}
+            className={adminTab === 2 ? "admin-sidebar-item is-active" : "admin-sidebar-item"}
+            onClick={() => setAdminTab(2)}
+          >
+            <Users size={18} />
+            <span>发言人管理</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={adminTab === 3}
+            className={adminTab === 3 ? "admin-sidebar-item is-active" : "admin-sidebar-item"}
+            onClick={() => setAdminTab(3)}
+          >
+            <FileText size={18} />
+            <span>登录日志</span>
+          </button>
+        </div>
+
+        <div className="admin-content">
+          {/* Tab 0: Quote Library */}
+          {adminTab === 0 && (
+            <section className="panel table-panel quote-table-panel">
+              <div className="panel-title-row">
+                <PanelTitle icon={Archive} title="言论库" action="SYNC" />
+                <button
+                  type="button"
+                  className="primary-action create-quote-btn"
+                  onClick={() => setShowCreateModal(true)}
+                >
+                  <Plus size={16} />
+                  <span>手动创建言论</span>
+                </button>
+              </div>
+              <div className="admin-table-tools">
+                <label className="admin-search">
+                  <Search size={15} />
+                  <input
+                    value={quoteQuery}
+                    placeholder="Search speaker / q-id"
+                    onChange={(event) => setQuoteQuery(event.target.value)}
+                  />
+                </label>
+                <span>{filteredQuotes.length} ROWS</span>
+              </div>
+              <div className="brutal-table paged-table">
+                <div className="table-row table-head admin-quote-row">
+                  <span>ID</span>
+                  <span>Speaker</span>
+                  <span>Quote</span>
+                  <span>Ops</span>
+                </div>
+                {pagedQuotes.map((quote) => (
+                  <div className="table-row admin-quote-row" key={quote.qid}>
+                    <span>{quote.qid}</span>
+                    <span>{quote.userdata.speaker}</span>
+                    <p>{quote.content}</p>
+                    <div className="switch-cluster">
+                      <button
+                        type="button"
+                        aria-label="查看详情"
+                        onClick={() => setDetailQuote(quote)}
+                      >
+                        <Eye size={14} />
+                      </button>
+                      <button
+                        className={featuredQuoteIds.includes(quote.qid) ? "is-featured" : ""}
+                        type="button"
+                        disabled={!canManageQuotes || (!featuredQuoteIds.includes(quote.qid) && featuredQuoteIds.length >= MAX_FEATURED_QUOTES)}
+                        aria-label="切换精华"
+                        onClick={() => onToggleFeaturedQuote(quote.qid)}
+                      >
+                        <Star size={14} />
+                      </button>
+                      <button type="button" disabled={!canManageQuotes} aria-label="删除言论" onClick={() => onDeleteQuote(quote.qid)}>
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <Pagination page={safeQuotePage} pageCount={quotePageCount} onPageChange={setQuotePage} />
+            </section>
+          )}
+
+          {/* Tab 1: User List */}
+          {adminTab === 1 && (
+            <section className="panel table-panel user-table-panel">
+              <PanelTitle icon={User} title="用户列表" action="ACL" />
+              <div className="brutal-table user-table editable-user-table">
+                <div className="table-row table-head">
+                  <span>User</span>
+                  <span>Role</span>
+                </div>
+                {users.map((user) => (
+                  <div className="table-row" key={user.uid}>
+                    <span>{user.nickname}</span>
+                    <select
+                      value={user.role}
+                      aria-label={`${user.nickname} role`}
+                      onChange={(event) => onUserChange(user.uid, { role: event.target.value as AdminUser["role"] })}
+                    >
+                      <option value="admin">admin</option>
+                      <option value="user">user</option>
+                      <option value="banned">banned</option>
+                    </select>
+                  </div>
+                ))}
+              </div>
+              <Pagination page={userPage} pageCount={getPageCount(userTotal, 4)} onPageChange={onUserPageChange} />
+            </section>
+          )}
+
+          {/* Tab 2: Speaker Management */}
+          {adminTab === 2 && (
+            <section className="panel table-panel speaker-manage-panel">
+              <PanelTitle icon={Users} title="发言人管理" action="LIST" />
+              <div className="brutal-table speaker-manage-table">
+                <div className="table-row table-head speaker-manage-head">
+                  <span>QQ 号</span>
+                  <span>昵称</span>
+                  <span>头像</span>
+                  <span>言论数</span>
+                  <span>操作</span>
+                </div>
+                {speakers.length === 0 && (
+                  <div className="empty-state">暂无发言人数据</div>
+                )}
+                {speakers.map((speaker) => (
+                  <div
+                    className="table-row speaker-manage-row"
+                    key={speaker.qqnumber}
+                    onClick={() => setSelectedSpeaker(speaker)}
+                  >
+                    <span>{speaker.qqnumber}</span>
+                    <span>{speaker.speaker}</span>
+                    <span className="speaker-avatar-cell">
+                      {speaker.avatar ? (
+                        <img
+                          className="speaker-avatar"
+                          src={speaker.avatar}
+                          alt={speaker.speaker}
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                        />
+                      ) : (
+                        <span className="speaker-avatar-placeholder">—</span>
+                      )}
+                    </span>
+                    <span>{speaker.quote_count}</span>
+                    <span>
+                      <button
+                        type="button"
+                        className="speaker-delete-btn"
+                        aria-label={`删除发言人 ${speaker.speaker}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteSpeaker(speaker.qqnumber);
+                        }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <Pagination page={speakerPage} pageCount={getPageCount(speakerTotal, SPEAKER_PAGE_SIZE)} onPageChange={setSpeakerPage} />
+            </section>
+          )}
+
+          {/* Tab 3: Login Logs */}
+          {adminTab === 3 && (
+            <section className="panel terminal-panel">
+              <PanelTitle icon={Terminal} title="登录日志" action="LIVE" />
+              <PageVirtualList
+                items={logs}
+                rowHeight={ADMIN_LOG_ROW_HEIGHT}
+                className="terminal-window virtual-list terminal-virtual-list"
+                rowClassName="terminal-line virtual-list-row"
+                maxVisibleRows={ADMIN_LOG_MAX_VISIBLE_ROWS}
+                getKey={(log) => log.id}
+                renderRow={(log) => (
+                  <p className={log.result === "failed" ? "is-failed" : ""}>
+                    <span>{log.at}</span> auth:{log.result} user={log.email} ip={log.ip}
+                  </p>
+                )}
+              />
+            </section>
+          )}
+        </div>
+      </div>
+
+      {/* Create Quote Modal */}
+      {showCreateModal && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="create-quote-title">
+          <div className="modal-panel create-quote-modal">
+            <div className="modal-head">
+              <h2 id="create-quote-title">手动创建言论</h2>
+              <button type="button" onClick={() => { setShowCreateModal(false); resetCreateForm(); }} aria-label="关闭">
+                <X size={18} />
+              </button>
+            </div>
+            <form className="create-quote-form" onSubmit={handleCreateQuote}>
+              <label className="modal-field">
+                <span>内容 *</span>
+                <textarea
+                  value={createContent}
+                  onChange={(e) => setCreateContent(e.target.value)}
+                  required
+                  rows={4}
                 />
               </label>
-              <span>{filteredQuotes.length} ROWS</span>
+              <label className="modal-field">
+                <span>QQ号 *</span>
+                <input
+                  type="text"
+                  value={createQqnumber}
+                  onChange={(e) => setCreateQqnumber(e.target.value)}
+                  required
+                  placeholder="请输入QQ号"
+                />
+              </label>
+              <label className="modal-field">
+                <span>昵称 *</span>
+                <input
+                  type="text"
+                  value={createSpeaker}
+                  onChange={(e) => setCreateSpeaker(e.target.value)}
+                  required
+                  placeholder="请输入昵称"
+                />
+              </label>
+              <label className="modal-field">
+                <span>群号</span>
+                <input
+                  type="text"
+                  value={createGroupnumber}
+                  onChange={(e) => setCreateGroupnumber(e.target.value)}
+                  placeholder="请输入群号"
+                />
+              </label>
+              <label className="modal-field">
+                <span>群名</span>
+                <input
+                  type="text"
+                  value={createGroupname}
+                  onChange={(e) => setCreateGroupname(e.target.value)}
+                  placeholder="请输入群名"
+                />
+              </label>
+              <label className="modal-field">
+                <span>Suppression</span>
+                <input
+                  type="number"
+                  value={createSuppression}
+                  onChange={(e) => setCreateSuppression(Number(e.target.value))}
+                  min={0}
+                />
+              </label>
+              <label className="modal-field">
+                <span>文件</span>
+                <input
+                  type="file"
+                  multiple
+                  onChange={(e) => setCreateFiles(e.target.files)}
+                  className="global-file-input"
+                />
+              </label>
+              {createError && <p className="form-error">{createError}</p>}
+              <button className="primary-action" type="submit" disabled={createSubmitting}>
+                <span>{createSubmitting ? "提交中..." : "提交"}</span>
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Quote Detail Modal */}
+      {detailQuote && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="detail-quote-title">
+          <div className="modal-panel detail-modal">
+            <div className="modal-head">
+              <h2 id="detail-quote-title">言论详情</h2>
+              <button type="button" onClick={() => setDetailQuote(null)} aria-label="关闭">
+                <X size={18} />
+              </button>
             </div>
-            <div className="brutal-table paged-table">
-              <div className="table-row table-head admin-quote-row">
-                <span>ID</span>
-                <span>Speaker</span>
-                <span>Quote</span>
-                <span>Ops</span>
+            <div className="detail-modal-body">
+              <table className="detail-table">
+                <tbody>
+                  <tr>
+                    <td className="detail-table-label">QQ</td>
+                    <td>{detailQuote.userdata?.qqnumber}</td>
+                  </tr>
+                  <tr>
+                    <td className="detail-table-label">昵称</td>
+                    <td>{detailQuote.userdata?.speaker}</td>
+                  </tr>
+                  <tr>
+                    <td className="detail-table-label">群号</td>
+                    <td>{detailQuote.groupdata?.groupnumber}</td>
+                  </tr>
+                  <tr>
+                    <td className="detail-table-label">群名</td>
+                    <td>{detailQuote.groupdata?.groupname || "—"}</td>
+                  </tr>
+                </tbody>
+              </table>
+              <div className="detail-field">
+                <span className="detail-field-title">抑郁度</span>
+                <div className="detail-suppression-bar-segmented">
+                  <div className="detail-suppression-segment" style={{ opacity: detailQuote.suppression >= 20 ? 0.4 : 0.12 }} />
+                  <div className="detail-suppression-segment" style={{ opacity: detailQuote.suppression >= 45 ? 0.6 : 0.12 }} />
+                  <div className="detail-suppression-segment" style={{ opacity: detailQuote.suppression >= 70 ? 0.8 : 0.12 }} />
+                  <div className="detail-suppression-segment" style={{ opacity: detailQuote.suppression >= 95 ? 1 : 0.12 }} />
+                </div>
+                <span className="detail-suppression-label">{detailQuote.suppression}%</span>
               </div>
-              {pagedQuotes.map((quote) => (
-                <div className="table-row admin-quote-row" key={quote.qid}>
-                  <span>{quote.qid}</span>
-                  <span>{quote.userdata.speaker}</span>
-                  <p>{quote.content}</p>
-                  <div className="switch-cluster">
-                    <button
-                      className={featuredQuoteIds.includes(quote.qid) ? "is-featured" : ""}
-                      type="button"
-                      disabled={!canManageQuotes || (!featuredQuoteIds.includes(quote.qid) && featuredQuoteIds.length >= MAX_FEATURED_QUOTES)}
-                      aria-label="切换精华"
-                      onClick={() => onToggleFeaturedQuote(quote.qid)}
-                    >
-                      <Star size={14} />
-                    </button>
-                    <button type="button" disabled={!canManageQuotes} aria-label="删除言论" onClick={() => onDeleteQuote(quote.qid)}>
-                      <Trash2 size={14} />
-                    </button>
+              <div className="detail-field">
+                <span className="detail-field-title">内容</span>
+                <p className="detail-content">{detailQuote.content}</p>
+              </div>
+              {detailQuote.attachmentid?.length > 0 && (
+                <div className="detail-field">
+                  <span className="detail-field-title">附件</span>
+                  <div className="detail-thumbnails">
+                    {detailQuote.attachmentid.map((attId) => (
+                      <img
+                        key={attId}
+                        className="detail-thumbnail"
+                        src={api.getQuoteAttachment(detailQuote.qid, attId)}
+                        alt={`附件 ${attId}`}
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                      />
+                    ))}
                   </div>
                 </div>
-              ))}
-            </div>
-            <Pagination page={safeQuotePage} pageCount={quotePageCount} onPageChange={setQuotePage} />
-          </section>
-        </div>
-
-        <div className="admin-column admin-side-column">
-          <section className="panel table-panel user-table-panel">
-            <PanelTitle icon={User} title="用户列表" action="ACL" />
-            <div className="brutal-table user-table editable-user-table">
-              <div className="table-row table-head">
-                <span>User</span>
-                <span>Role</span>
-              </div>
-              {users.map((user) => (
-                <div className="table-row" key={user.uid}>
-                  <span>{user.nickname}</span>
-                  <select
-                    value={user.role}
-                    aria-label={`${user.nickname} role`}
-                    onChange={(event) => onUserChange(user.uid, { role: event.target.value as AdminUser["role"] })}
-                  >
-                    <option value="admin">admin</option>
-                    <option value="user">user</option>
-                    <option value="banned">banned</option>
-                  </select>
+              )}
+              {detailQuote.created_at && (
+                <div className="detail-field">
+                  <span className="detail-field-title">创建时间</span>
+                  <span>{detailQuote.created_at}</span>
                 </div>
-              ))}
+              )}
             </div>
-            <Pagination page={userPage} pageCount={getPageCount(userTotal, 4)} onPageChange={onUserPageChange} />
-          </section>
+          </div>
         </div>
+      )}
 
-        <section className="panel terminal-panel terminal-fullwidth">
-          <PanelTitle icon={Terminal} title="登录日志" action="LIVE" />
-          <PageVirtualList
-            items={logs}
-            rowHeight={ADMIN_LOG_ROW_HEIGHT}
-            className="terminal-window virtual-list terminal-virtual-list"
-            rowClassName="terminal-line virtual-list-row"
-            maxVisibleRows={ADMIN_LOG_MAX_VISIBLE_ROWS}
-            getKey={(log) => log.id}
-            renderRow={(log) => (
-              <p className={log.result === "failed" ? "is-failed" : ""}>
-                <span>{log.at}</span> auth:{log.result} user={log.email} ip={log.ip}
-              </p>
-            )}
-          />
-        </section>
-      </div>
+      {/* Speaker Detail Modal */}
+      {selectedSpeaker && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="speaker-detail-title">
+          <div className="modal-panel detail-modal">
+            <div className="modal-head">
+              <h2 id="speaker-detail-title">发言人详情</h2>
+              <button type="button" onClick={() => setSelectedSpeaker(null)} aria-label="关闭">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="detail-modal-body">
+              <div className="detail-section">
+                <h3>QQ 号</h3>
+                <span>{selectedSpeaker.qqnumber}</span>
+              </div>
+              <div className="detail-section">
+                <h3>昵称</h3>
+                <span>{selectedSpeaker.speaker}</span>
+              </div>
+              {selectedSpeaker.avatar && (
+                <div className="detail-section">
+                  <h3>头像</h3>
+                  <img className="detail-avatar" src={selectedSpeaker.avatar} alt={selectedSpeaker.speaker} />
+                </div>
+              )}
+              <div className="detail-section">
+                <h3>言论数</h3>
+                <span>{selectedSpeaker.quote_count}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

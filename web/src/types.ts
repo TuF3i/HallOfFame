@@ -18,6 +18,7 @@ export interface Quote {
   qid: string;
   content: string;
   suppression: number;
+  ai_comment?: string;
   userdata: {
     qqnumber: string;
     speaker: string;
@@ -61,4 +62,11 @@ export interface LoginLog {
   email: string;
   ip: string;
   result: "success" | "failed";
+}
+
+export interface Speaker {
+  qqnumber: string;
+  speaker: string;
+  avatar?: string;
+  quote_count: number;
 }

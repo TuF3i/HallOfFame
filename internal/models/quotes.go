@@ -13,6 +13,7 @@ type Quotes struct {
 	GroupData    GroupData          `bson:"groupdata"`
 	AttachmentID []string           `bson:"attachmentid"`
 	IsFeatured   bool               `bson:"is_featured"`
+	AiComment    string             `bson:"ai_comment" json:"ai_comment"`
 }
 
 type UserMeta struct {

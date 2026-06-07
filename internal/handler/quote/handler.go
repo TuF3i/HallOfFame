@@ -193,20 +193,42 @@ func (h *QuoteHandler) ListAllQuotes(c context.Context, ctx *app.RequestContext)
 
 // CreateQuote POST /api/admin/quotes (multipart/form-data)
 func (h *QuoteHandler) CreateQuote(c context.Context, ctx *app.RequestContext) {
-	content := ctx.PostForm("content")
+	// Parse multipart form first to avoid consuming it with PostForm calls
+	multipartForm, multipartErr := ctx.MultipartForm()
+
+	content := ""
+	if multipartErr == nil {
+		content = multipartForm.Value["content"][0]
+	} else {
+		content = ctx.PostForm("content")
+	}
 	if content == "" {
 		ctx.JSON(200, dto.Error(dto.ErrBadRequest, "content is required"))
 		return
 	}
 
-	suppressionStr := ctx.PostForm("suppression")
+	suppressionStr := ""
+	if multipartErr == nil {
+		if vals := multipartForm.Value["suppression"]; len(vals) > 0 {
+			suppressionStr = vals[0]
+		}
+	} else {
+		suppressionStr = ctx.PostForm("suppression")
+	}
 	var suppression float64
 	if suppressionStr != "" {
 		suppression, _ = strconv.ParseFloat(suppressionStr, 64)
 	}
 
 	// 解析 UserData JSON
-	userDataStr := ctx.PostForm("userdata")
+	userDataStr := ""
+	if multipartErr == nil {
+		if vals := multipartForm.Value["userdata"]; len(vals) > 0 {
+			userDataStr = vals[0]
+		}
+	} else {
+		userDataStr = ctx.PostForm("userdata")
+	}
 	if userDataStr == "" {
 		ctx.JSON(200, dto.Error(dto.ErrBadRequest, "userdata is required"))
 		return
@@ -219,7 +241,15 @@ func (h *QuoteHandler) CreateQuote(c context.Context, ctx *app.RequestContext) {
 
 	// 解析 GroupData JSON（可选）
 	var groupData models.GroupData
-	if groupDataStr := ctx.PostForm("groupdata"); groupDataStr != "" {
+	groupDataStr := ""
+	if multipartErr == nil {
+		if vals := multipartForm.Value["groupdata"]; len(vals) > 0 {
+			groupDataStr = vals[0]
+		}
+	} else {
+		groupDataStr = ctx.PostForm("groupdata")
+	}
+	if groupDataStr != "" {
 		if err := json.Unmarshal([]byte(groupDataStr), &groupData); err != nil {
 			ctx.JSON(200, dto.Error(dto.ErrBadRequest, "invalid groupdata json"))
 			return
@@ -230,9 +260,8 @@ func (h *QuoteHandler) CreateQuote(c context.Context, ctx *app.RequestContext) {
 
 	// 处理附件上传
 	var attachmentIDs []string
-	form, err := ctx.MultipartForm()
-	if err == nil {
-		files := form.File["files"]
+	if multipartErr == nil {
+		files := multipartForm.File["files"]
 		for _, file := range files {
 			attID := uuid.New().String()
 			minioKey := fmt.Sprintf("attachments/%s/%s", qid, attID)

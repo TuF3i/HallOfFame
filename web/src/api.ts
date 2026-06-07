@@ -1,4 +1,4 @@
-import type { AdminUser, AuthTokens, LoginLog, Profile, Quote } from "./types";
+import type { AdminUser, AuthTokens, LoginLog, Profile, Quote, Speaker } from "./types";
 
 interface PageResult<T> {
   items: T[];
@@ -64,6 +64,11 @@ async function request<T>(path: string, init: RequestInit = {}, withAuth = false
       headers,
       signal: controller.signal,
     });
+
+    if (response.status === 401) {
+      window.dispatchEvent(new CustomEvent("hof:session-expired"));
+      throw new ApiError("Session expired. Please login again.", 401);
+    }
 
     if (!response.ok) {
       throw new ApiError(`Request failed with HTTP ${response.status}.`, response.status);
@@ -166,5 +171,42 @@ export const api = {
     await request<void>(`/api/admin/quotes/${qid}`, {
       method: "DELETE",
     }, true);
+  },
+
+  async createQuote(formData: FormData): Promise<void> {
+    await request<void>("/api/admin/quotes", {
+      method: "POST",
+      body: formData,
+    }, true);
+  },
+
+  async listSpeakers(page = 1, pageSize = 50): Promise<PageResult<Speaker>> {
+    return request<PageResult<Speaker>>(`/api/quotes/speakers?page=${page}&page_size=${pageSize}`, {}, true);
+  },
+
+  async deleteSpeaker(qqNumber: string): Promise<void> {
+    await request<void>(`/api/admin/speakers/${qqNumber}`, {
+      method: "DELETE",
+    }, true);
+  },
+
+  async refreshToken(refreshToken: string): Promise<AuthTokens> {
+    const data = await request<{
+      access_token: string;
+      refresh_token: string;
+    }>("/api/auth/refresh", {
+      method: "POST",
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    return {
+      access_token: data.access_token,
+      refresh_token: data.refresh_token,
+    };
+  },
+
+  getQuoteAttachment(qid: string, attId: string): string {
+    const tokens = tokenStore.read();
+    const token = tokens?.access_token ?? "";
+    return `${API_BASE_URL}/api/quotes/attachments/${qid}/${attId}?token=${encodeURIComponent(token)}`;
   },
 };

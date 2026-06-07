@@ -34,6 +34,7 @@ type QuoteResp struct {
 	GroupData    GroupDataResp `json:"groupdata"`
 	AttachmentID []string      `json:"attachmentid"`
 	IsFeatured   bool          `json:"is_featured"`
+	AiComment    string        `json:"ai_comment"`
 }
 
 type UserMetaResp struct {
@@ -74,6 +75,7 @@ func QuoteToDTO(q *models.Quotes) QuoteResp {
 		},
 		AttachmentID: q.AttachmentID,
 		IsFeatured:   q.IsFeatured,
+		AiComment:    q.AiComment,
 	}
 }
 

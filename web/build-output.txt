@@ -1,0 +1,105 @@
+Failed to write init script: open C:\Users\13759\AppData\Local\oh-my-posh\init.26.19.1.3afa4a6d23d77c23.0.ps1: The system cannot find the file specified.
+Import-PowerShellDataFile : 无法将“Import-PowerShellDataFile”项识别为 cmdlet、函数、脚本文件或可运行程序的名称。请检查名称的拼写，如
+果包括路径，请确保路径正确，然后再试一次。
+所在位置 C:\Users\13759\Documents\PowerShell\Modules\Terminal-Icons\0.11.0\Terminal-Icons.psm1:210 字符: 33
++         $hash.Add($_.Basename, (Import-PowerShellDataFile $_.FullName ...
++                                 ~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (Import-PowerShellDataFile:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+ 
+Import-PowerShellDataFile : 无法将“Import-PowerShellDataFile”项识别为 cmdlet、函数、脚本文件或可运行程序的名称。请检查名称的拼写，如
+果包括路径，请确保路径正确，然后再试一次。
+所在位置 C:\Users\13759\Documents\PowerShell\Modules\Terminal-Icons\0.11.0\Terminal-Icons.psm1:196 字符: 22
++         $colorData = Import-PowerShellDataFile $_.FullName
++                      ~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (Import-PowerShellDataFile:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+ 
+索引操作失败；数组索引的计算结果为 Null。
+所在位置 C:\Users\13759\Documents\PowerShell\Modules\Terminal-Icons\0.11.0\Terminal-Icons.psm1:197 字符: 9
++         $hash[$colorData.Name] = $colorData
++         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArrayIndex
+ 
+索引操作失败；数组索引的计算结果为 Null。
+所在位置 C:\Users\13759\Documents\PowerShell\Modules\Terminal-Icons\0.11.0\Terminal-Icons.psm1:198 字符: 9
++         $hash[$colorData.Name].Types.Directories[''] = $colorReset
++         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArrayIndex
+ 
+索引操作失败；数组索引的计算结果为 Null。
+所在位置 C:\Users\13759\Documents\PowerShell\Modules\Terminal-Icons\0.11.0\Terminal-Icons.psm1:199 字符: 9
++         $hash[$colorData.Name].Types.Files['']       = $colorReset
++         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArrayIndex
+ 
+Import-PowerShellDataFile : 无法将“Import-PowerShellDataFile”项识别为 cmdlet、函数、脚本文件或可运行程序的名称。请检查名称的拼写，如
+果包括路径，请确保路径正确，然后再试一次。
+所在位置 C:\Users\13759\Documents\PowerShell\Modules\Terminal-Icons\0.11.0\Terminal-Icons.psm1:196 字符: 22
++         $colorData = Import-PowerShellDataFile $_.FullName
++                      ~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (Import-PowerShellDataFile:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+ 
+索引操作失败；数组索引的计算结果为 Null。
+所在位置 C:\Users\13759\Documents\PowerShell\Modules\Terminal-Icons\0.11.0\Terminal-Icons.psm1:197 字符: 9
++         $hash[$colorData.Name] = $colorData
++         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArrayIndex
+ 
+索引操作失败；数组索引的计算结果为 Null。
+所在位置 C:\Users\13759\Documents\PowerShell\Modules\Terminal-Icons\0.11.0\Terminal-Icons.psm1:198 字符: 9
++         $hash[$colorData.Name].Types.Directories[''] = $colorReset
++         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArrayIndex
+ 
+索引操作失败；数组索引的计算结果为 Null。
+所在位置 C:\Users\13759\Documents\PowerShell\Modules\Terminal-Icons\0.11.0\Terminal-Icons.psm1:199 字符: 9
++         $hash[$colorData.Name].Types.Files['']       = $colorReset
++         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : NullArrayIndex
+ 
+Export-Clixml : 对路径“C:\Users\13759\AppData\Roaming\powershell\Community\Terminal-Icons\devblackops_light_color.xml”的访问被拒绝。
+所在位置 C:\Users\13759\Documents\PowerShell\Modules\Terminal-Icons\0.11.0\Terminal-Icons.psm1:3435 字符: 16
++     $_.Value | Export-Clixml -Path $colorThemePath -Force
++                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OpenError: (:) [Export-Clixml], UnauthorizedAccessException
+    + FullyQualifiedErrorId : FileOpenFailure,Microsoft.PowerShell.Commands.ExportClixmlCommand
+ 
+Export-Clixml : 对路径“C:\Users\13759\AppData\Roaming\powershell\Community\Terminal-Icons\devblackops_color.xml”的访问被拒绝。
+所在位置 C:\Users\13759\Documents\PowerShell\Modules\Terminal-Icons\0.11.0\Terminal-Icons.psm1:3435 字符: 16
++     $_.Value | Export-Clixml -Path $colorThemePath -Force
++                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OpenError: (:) [Export-Clixml], UnauthorizedAccessException
+    + FullyQualifiedErrorId : FileOpenFailure,Microsoft.PowerShell.Commands.ExportClixmlCommand
+ 
+Export-Clixml : 对路径“C:\Users\13759\AppData\Roaming\powershell\Community\Terminal-Icons\devblackops_icon.xml”的访问被拒绝。
+所在位置 C:\Users\13759\Documents\PowerShell\Modules\Terminal-Icons\0.11.0\Terminal-Icons.psm1:3439 字符: 16
++     $_.Value | Export-Clixml -Path $iconThemePath -Force
++                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OpenError: (:) [Export-Clixml], UnauthorizedAccessException
+    + FullyQualifiedErrorId : FileOpenFailure,Microsoft.PowerShell.Commands.ExportClixmlCommand
+ 
+Export-CliXml : 对路径“C:\Users\13759\AppData\Roaming\powershell\Community\Terminal-Icons\prefs.xml”的访问被拒绝。
+所在位置 C:\Users\13759\Documents\PowerShell\Modules\Terminal-Icons\0.11.0\Terminal-Icons.psm1:412 字符: 24
++         $Preferences | Export-CliXml -Path $Path -Force
++                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OpenError: (:) [Export-Clixml], UnauthorizedAccessException
+    + FullyQualifiedErrorId : FileOpenFailure,Microsoft.PowerShell.Commands.ExportClixmlCommand
+ 
+illusi0n
+[36mvite v7.3.5 [32mbuilding client environment for production...[36m[39m
+transforming...
+[32m鉁?[39m 1582 modules transformed.
+rendering chunks...
+computing gzip size...
+[2mdist/[22m[32mindex.html                 [39m[1m[2m  0.41 kB[22m[1m[22m[2m 鈹?gzip:  0.28 kB[22m
+[2mdist/[22m[35massets/index-bfWi4mHt.css  [39m[1m[2m 43.83 kB[22m[1m[22m[2m 鈹?gzip:  9.16 kB[22m
+[2mdist/[22m[36massets/index-DFASpTVk.js   [39m[1m[2m248.01 kB[22m[1m[22m[2m 鈹?gzip: 76.70 kB[22m
+[32m鉁?built in 4.63s[39m

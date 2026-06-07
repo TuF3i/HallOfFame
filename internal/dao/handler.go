@@ -253,6 +253,13 @@ func (r *Dao) UpdateQuoteFeatured(ctx context.Context, qid string, featured bool
 	return err
 }
 
+// UpdateQuoteAiComment 更新 AI 评论文本
+func (r *Dao) UpdateQuoteAiComment(ctx context.Context, qid string, aiComment string) error {
+	_, err := r.MongoClient.Database.Collection(consts.QuotesCollection).
+		UpdateOne(ctx, bson.M{"qid": qid}, bson.M{"$set": bson.M{"ai_comment": aiComment}})
+	return err
+}
+
 // GetQuotesBySpeaker 按发言者分页查询
 func (r *Dao) GetQuotesBySpeaker(ctx context.Context, qqNumber string, page, pageSize int) ([]models.Quotes, int64, error) {
 	filter := bson.M{"userdata.qqnumber": qqNumber}

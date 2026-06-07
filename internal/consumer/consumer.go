@@ -199,6 +199,7 @@ func processBatch(ctx context.Context, c *cache.Cache, d *dao.Dao, chatModel mod
 			},
 			AttachmentID: nil,
 			IsFeatured:   false,
+			AiComment:    result.Reason,
 		}
 
 		if err := d.AddQuote(ctx, quote); err != nil {
