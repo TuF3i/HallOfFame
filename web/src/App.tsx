@@ -30,7 +30,6 @@ import {
 } from "lucide-react";
 import { api, tokenStore } from "./api";
 import { FluidShader } from "./components/FluidShader";
-import { GeometricPortrait } from "./components/GeometricPortrait";
 
 import type { AdminUser, AuthMode, AuthTokens, LoginLog, Profile, Quote, QuotePerson, Speaker, View } from "./types";
 
@@ -43,7 +42,7 @@ const navViews: Array<{ id: Exclude<View, "auth">; label: string; icon: typeof K
 const PACK_PREVIEW_DELAY_MS = 120;
 const VIRTUAL_LIST_OVERSCAN = 6;
 const ADMIN_LOG_ROW_HEIGHT = 28;
-const ADMIN_LOG_MAX_VISIBLE_ROWS = 10;
+const ADMIN_LOG_MAX_VISIBLE_ROWS = 18;
 const HISTORY_PAGE_SIZE = 4;
 const ADMIN_QUOTE_PAGE_SIZE = 8;
 const MAX_FEATURED_QUOTES = 4;
@@ -1112,14 +1111,15 @@ function ArchivePage({
         </aside>
         <article className="quote-card" aria-busy={loading}>
           <section className="quote-card-section portrait-section">
-            <GeometricPortrait person={selected} />
             <div className="person-meta">
-              <h2 className="nickname-box">{selected.name}</h2>
+              <span className="person-kicker">{selectedFeatured ? "FEATURED COLLECTION" : selected.signal}</span>
+              <h2 className="nickname-box">{selectedFeatured ? "精华合集" : selected.name}</h2>
+              <p className="person-role">{selectedFeatured ? "被管理员标记的精选言论" : selected.role}</p>
               <div className="person-stats">
-                <span className="badge">QQ: {selected.qqnumber}</span>
-                <span className="badge">{selected.quoteCount} 条发言</span>
+                <span className="badge">QQ: {selectedFeatured ? "MULTI" : selected.qqnumber}</span>
+                <span className="badge">{historyRows.length} 条发言</span>
+                <span className="badge">{selectedFeatured ? "FEATURED" : selected.qqGroup}</span>
               </div>
-              <span className="badge">{selected.qqGroup}</span>
             </div>
           </section>
           <section className="quote-card-section history-section">
