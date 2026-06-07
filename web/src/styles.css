@@ -695,7 +695,8 @@ button:disabled {
 
 .archive-page {
   display: grid;
-  align-items: center;
+  grid-template-rows: 1fr;
+  align-items: stretch;
 }
 
 .page-label {
@@ -727,11 +728,14 @@ button:disabled {
   align-items: stretch;
   gap: clamp(12px, 2vw, 28px);
   justify-self: center;
+  align-self: stretch;
 }
 
 .pack-menu {
   position: relative;
-  min-height: 570px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
 }
 
 .pack-title {
@@ -747,16 +751,23 @@ button:disabled {
 .pack-list {
   position: relative;
   display: grid;
-  gap: 12px;
-  min-height: 580px;
+  gap: 18px;
+  flex: 1;
+  overflow-y: auto;
   align-content: start;
-  padding: 2px 0 24px;
+  padding: 2px 20px 24px 0;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+
+.pack-list::-webkit-scrollbar {
+  display: none;
 }
 
 .pack-card {
   position: relative;
   display: grid;
-  width: 100%;
+  width: calc(100% - 16px);
   min-height: 96px;
   align-content: start;
   gap: 6px;
@@ -764,7 +775,6 @@ button:disabled {
   border: 1px solid rgba(8, 8, 8, 0.18);
   border-radius: 8px;
   background: var(--paper);
-  box-shadow: 0 18px 34px rgba(8, 8, 8, 0.13);
   cursor: pointer;
   transition:
     transform 180ms ease,
@@ -774,7 +784,7 @@ button:disabled {
 }
 
 .pack-card.is-previewed {
-  box-shadow: 0 22px 44px rgba(8, 8, 8, 0.16);
+  transform: translateY(-1px);
 }
 
 .pack-card.is-selected {
@@ -782,7 +792,6 @@ button:disabled {
   transform: translateX(16px);
   background: var(--ink);
   color: var(--paper);
-  box-shadow: 0 22px 44px rgba(8, 8, 8, 0.16);
 }
 
 .pack-card.is-featured-card {
@@ -833,9 +842,9 @@ button:disabled {
 .quote-card {
   position: relative;
   display: grid;
-  grid-template-rows: 1fr 1fr;
+  grid-template-rows: 2fr 5fr;
   width: 100%;
-  min-height: 660px;
+  min-height: 0;
   border: 1px solid rgba(8, 8, 8, 0.12);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.92);
@@ -1284,7 +1293,7 @@ button:disabled {
   position: relative;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  min-height: 500px;
+  min-height: 0;
   border: 1px solid rgba(8, 8, 8, 0.12);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.88);
