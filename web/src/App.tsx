@@ -43,9 +43,7 @@ const PACK_PREVIEW_DELAY_MS = 120;
 const VIRTUAL_LIST_OVERSCAN = 6;
 const ADMIN_LOG_ROW_HEIGHT = 28;
 const ADMIN_LOG_MAX_VISIBLE_ROWS = 18;
-const HISTORY_PAGE_SIZE = 4;
 const ADMIN_QUOTE_PAGE_SIZE = 8;
-const MAX_FEATURED_QUOTES = 4;
 const PROFILE_STORAGE_KEY = "hof.profile";
 const CURSOR_SETTINGS_STORAGE_KEY = "hof.cursor-settings";
 const APP_SETTINGS_STORAGE_KEY = "hof.app-settings";
@@ -157,7 +155,7 @@ function getPageCount(total: number, pageSize: number) {
 }
 
 function getFeaturedQuoteIds(quotes: Quote[]) {
-  return quotes.filter((quote) => quote.is_featured).map((quote) => quote.qid).slice(0, MAX_FEATURED_QUOTES);
+  return quotes.filter((quote) => quote.is_featured).map((quote) => quote.qid);
 }
 
 function PageVirtualList<Item>({
@@ -521,11 +519,6 @@ function App() {
       const q = currentQuotes.find((item) => item.qid === quoteId);
       if (!q) return currentQuotes;
       void api.toggleFeaturedQuote(quoteId, !q.is_featured);
-      const isAlreadyFeatured = currentQuotes.some((item) => item.qid === quoteId && item.is_featured);
-      const featuredCount = currentQuotes.filter((item) => item.is_featured).length;
-      if (!isAlreadyFeatured && featuredCount >= MAX_FEATURED_QUOTES) {
-        return currentQuotes;
-      }
       return currentQuotes.map((item) => (item.qid === quoteId ? { ...item, is_featured: !item.is_featured } : item));
     });
   };
@@ -943,10 +936,16 @@ function ArchivePage({
   const [selectedFeatured, setSelectedFeatured] = useState(false);
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [historyPage, setHistoryPage] = useState(0);
   const [detailQuote, setDetailQuote] = useState<Quote | null>(null);
   const [imageModalUrl, setImageModalUrl] = useState<string | null>(null);
   const previewTimerRef = useRef<number | null>(null);
+
+  // API-driven pagination state
+  const [quotePage, setQuotePage] = useState(1);
+  const [quoteRows, setQuoteRows] = useState<Quote[]>([]);
+  const [quoteTotal, setQuoteTotal] = useState(0);
+  const [quoteLoading, setQuoteLoading] = useState(false);
+  const QUOTE_PAGE_SIZE = 10;
 
   const handleViewDetail = useCallback((quote: Quote) => {
     setDetailQuote((current) => (current?.qid === quote.qid ? null : quote));
@@ -966,10 +965,50 @@ function ArchivePage({
     }
   }, [people, previewId, selectedId]);
 
+  // Reset pagination and close overlay when selection changes
   useEffect(() => {
-    setHistoryPage(0);
+    setQuotePage(1);
+    setQuoteRows([]);
+    setQuoteTotal(0);
     setHistoryOpen(false);
+    setDetailQuote(null);
   }, [selectedId, selectedFeatured]);
+
+  // Fetch quotes from API whenever selection or page changes
+  const selected = useMemo(
+    () => people.find((person) => person.id === selectedId) ?? people[0] ?? null,
+    [people, selectedId],
+  );
+
+  useEffect(() => {
+    if (!selected && !selectedFeatured) return;
+
+    let active = true;
+    setQuoteLoading(true);
+
+    async function fetchQuotes() {
+      try {
+        let result;
+        if (selectedFeatured) {
+          result = await api.featuredQuotes(quotePage, QUOTE_PAGE_SIZE);
+        } else if (selected) {
+          result = await api.speakerQuotes(selected.qqnumber, quotePage, QUOTE_PAGE_SIZE);
+        } else {
+          return;
+        }
+        if (!active) return;
+        setQuoteRows(result.items);
+        setQuoteTotal(result.total);
+      } catch {
+        // keep existing rows on error
+      } finally {
+        if (active) setQuoteLoading(false);
+      }
+    }
+
+    void fetchQuotes();
+    return () => { active = false; };
+  }, [selected, selectedFeatured, quotePage]);
 
   useEffect(() => {
     return () => {
@@ -1012,11 +1051,9 @@ function ArchivePage({
   function selectFeatured() {
     clearPackPreview();
     if (selectedFeatured) {
-      // Deselect featured - no card selected
       setSelectedFeatured(false);
       setSelectedId("");
     } else {
-      // Select featured - clear person selection
       setSelectedFeatured(true);
       setSelectedId("");
     }
@@ -1028,15 +1065,7 @@ function ArchivePage({
     }
   }
 
-  const selected = useMemo(
-    () => people.find((person) => person.id === selectedId) ?? people[0] ?? null,
-    [people, selectedId],
-  );
-
-  const featuredQuotes = useMemo(
-    () => people.flatMap((person) => person.history.filter((q) => q.is_featured)),
-    [people],
-  );
+  const quotePageCount = getPageCount(quoteTotal, QUOTE_PAGE_SIZE);
 
   if (!people.length) {
     return (
@@ -1045,11 +1074,6 @@ function ArchivePage({
       </section>
     );
   }
-
-  const historyRows = selectedFeatured ? featuredQuotes : (selected?.history ?? []);
-  const visibleHistoryRows = historyRows.slice(0, HISTORY_PAGE_SIZE);
-  const historyPageCount = getPageCount(historyRows.length, HISTORY_PAGE_SIZE);
-  const pagedHistoryRows = historyRows.slice(historyPage * HISTORY_PAGE_SIZE, (historyPage + 1) * HISTORY_PAGE_SIZE);
 
   return (
     <section className="archive-page" aria-labelledby="archive-title">
@@ -1082,7 +1106,7 @@ function ArchivePage({
                 </div>
               </div>
             </button>
-            {people.map((person, index) => (
+            {people.map((person) => (
               <button
                 type="button"
                 key={person.id}
@@ -1109,16 +1133,16 @@ function ArchivePage({
             ))}
           </div>
         </aside>
-        <article className="quote-card" aria-busy={loading}>
+        <article className="quote-card" aria-busy={loading || quoteLoading}>
           <section className="quote-card-section portrait-section">
             <div className="person-meta">
-              <span className="person-kicker">{selectedFeatured ? "FEATURED COLLECTION" : selected.signal}</span>
-              <h2 className="nickname-box">{selectedFeatured ? "精华合集" : selected.name}</h2>
-              <p className="person-role">{selectedFeatured ? "被管理员标记的精选言论" : selected.role}</p>
+              <span className="person-kicker">{selectedFeatured ? "FEATURED COLLECTION" : selected?.signal ?? ""}</span>
+              <h2 className="nickname-box">{selectedFeatured ? "精华合集" : (selected?.name ?? "")}</h2>
+              <p className="person-role">{selectedFeatured ? "被管理员标记的精选言论" : (selected?.role ?? "")}</p>
               <div className="person-stats">
-                <span className="badge">QQ: {selectedFeatured ? "MULTI" : selected.qqnumber}</span>
-                <span className="badge">{historyRows.length} 条发言</span>
-                <span className="badge">{selectedFeatured ? "FEATURED" : selected.qqGroup}</span>
+                <span className="badge">QQ: {selectedFeatured ? "MULTI" : (selected?.qqnumber ?? "—")}</span>
+                <span className="badge">{quoteTotal} 条发言</span>
+                <span className="badge">{selectedFeatured ? "FEATURED" : (selected?.qqGroup ?? "—")}</span>
               </div>
             </div>
           </section>
@@ -1129,19 +1153,27 @@ function ArchivePage({
               <span>言论</span>
             </div>
             <HistoryRows
-              rows={visibleHistoryRows}
-              canManageFeatured={false}
+              rows={quoteRows}
+              canManageFeatured={canManageFeatured}
               featuredQuoteIds={featuredQuoteIds}
               onToggleFeaturedQuote={onToggleFeaturedQuote}
               onViewDetail={handleViewDetail}
               activeDetailQid={detailQuote?.qid ?? null}
             />
+            {quotePageCount > 1 && (
+              <Pagination
+                page={quotePage - 1}
+                pageCount={quotePageCount}
+                onPageChange={(p) => setQuotePage(p + 1)}
+                compactLabel={`${quotePage}/${quotePageCount}`}
+              />
+            )}
           </section>
           {historyOpen && (
             <section className="history-overlay" aria-labelledby="history-overlay-title">
               <div className="history-overlay-head">
                 <div>
-                  <span>{historyRows.length} ROWS</span>
+                  <span>{quoteTotal} ROWS</span>
                   <h2 id="history-overlay-title">EXPLORE HISTORY</h2>
                 </div>
                 <button type="button" onClick={() => setHistoryOpen(false)} aria-label="关闭历史">
@@ -1154,7 +1186,7 @@ function ArchivePage({
                 <span>言论</span>
               </div>
               <HistoryRows
-                rows={pagedHistoryRows}
+                rows={quoteRows}
                 canManageFeatured={canManageFeatured}
                 featuredQuoteIds={featuredQuoteIds}
                 onToggleFeaturedQuote={onToggleFeaturedQuote}
@@ -1162,10 +1194,10 @@ function ArchivePage({
                 activeDetailQid={detailQuote?.qid ?? null}
               />
               <Pagination
-                page={historyPage}
-                pageCount={historyPageCount}
-                onPageChange={setHistoryPage}
-                compactLabel={`${historyPage + 1}/${historyPageCount}`}
+                page={quotePage - 1}
+                pageCount={quotePageCount}
+                onPageChange={(p) => setQuotePage(p + 1)}
+                compactLabel={`${quotePage}/${quotePageCount}`}
               />
             </section>
           )}
@@ -1287,7 +1319,7 @@ function HistoryRows({ rows, canManageFeatured, featuredQuoteIds, onToggleFeatur
     <div className="history-list" tabIndex={0} aria-label="历史金句">
       {rows.map((item) => {
         const isFeatured = featuredQuoteIds.includes(item.qid);
-        const limitReached = featuredQuoteIds.length >= MAX_FEATURED_QUOTES && !isFeatured;
+        const limitReached = false;
 
         return (
           <div className={canManageFeatured ? "history-row history-row-manage" : "history-row"} key={item.qid}>
@@ -1620,7 +1652,7 @@ function AdminDashboard({
                       <button
                         className={featuredQuoteIds.includes(quote.qid) ? "is-featured" : ""}
                         type="button"
-                        disabled={!canManageQuotes || (!featuredQuoteIds.includes(quote.qid) && featuredQuoteIds.length >= MAX_FEATURED_QUOTES)}
+                        disabled={!canManageQuotes}
                         aria-label="切换精华"
                         onClick={() => onToggleFeaturedQuote(quote.qid)}
                       >

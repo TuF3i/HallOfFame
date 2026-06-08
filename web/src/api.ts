@@ -187,6 +187,22 @@ const realApi = {
     }, true);
   },
 
+  async speakerQuotes(qqNumber: string, page = 1, pageSize = 10): Promise<PageResult<Quote>> {
+    return request<PageResult<Quote>>(
+      `/api/quotes/speakers/${encodeURIComponent(qqNumber)}/quotes?page=${page}&page_size=${pageSize}`,
+      {},
+      true,
+    );
+  },
+
+  async featuredQuotes(page = 1, pageSize = 10): Promise<PageResult<Quote>> {
+    return request<PageResult<Quote>>(
+      `/api/quotes/featured?page=${page}&page_size=${pageSize}`,
+      {},
+      true,
+    );
+  },
+
   async listSpeakers(page = 1, pageSize = 50): Promise<PageResult<Speaker>> {
     return request<PageResult<Speaker>>(`/api/quotes/speakers?page=${page}&page_size=${pageSize}`, {}, true);
   },
@@ -378,6 +394,21 @@ const mockApi = {
     });
 
     return delay(undefined);
+  },
+
+  async speakerQuotes(qqNumber: string, page = 1, pageSize = 10): Promise<PageResult<Quote>> {
+    const speakers = speakersFromQuotes(mockState.quotes, mockState.hiddenSpeakerIds);
+    const speaker = speakers.find((s) => s.qqnumber === qqNumber);
+    if (!speaker) {
+      return delay({ items: [], total: 0, page, page_size: pageSize });
+    }
+    const allQuotes = mockState.quotes.filter((q) => q.userdata?.qqnumber === qqNumber);
+    return delay(clonePage(paginate(allQuotes, page, pageSize), cloneQuote));
+  },
+
+  async featuredQuotes(page = 1, pageSize = 10): Promise<PageResult<Quote>> {
+    const featured = mockState.quotes.filter((q) => q.is_featured);
+    return delay(clonePage(paginate(featured, page, pageSize), cloneQuote));
   },
 
   async listSpeakers(page = 1, pageSize = 50): Promise<PageResult<Speaker>> {

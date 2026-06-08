@@ -845,12 +845,10 @@ button:disabled {
   border-radius: 18px;
   background: rgba(255, 250, 240, 0.82);
   cursor: pointer;
-  box-shadow: 0 10px 24px rgba(50, 34, 16, 0.08);
   transition:
     transform 180ms ease,
     background 220ms ease,
-    color 220ms ease,
-    box-shadow 220ms ease;
+    color 220ms ease;
 }
 
 .pack-card.is-previewed {
@@ -863,7 +861,6 @@ button:disabled {
   background:
     linear-gradient(135deg, #18130d, #25160e 68%, #d92f2f);
   color: #fff8e8;
-  box-shadow: 0 20px 42px rgba(24, 19, 13, 0.22);
 }
 
 .pack-card.is-featured-card {
@@ -926,7 +923,6 @@ button:disabled {
   background:
     linear-gradient(140deg, rgba(255, 250, 240, 0.94), rgba(255, 250, 240, 0.72)),
     radial-gradient(circle at 0 0, rgba(184, 135, 43, 0.18), transparent 38%);
-  box-shadow: var(--shadow);
   overflow: hidden;
 }
 
@@ -988,7 +984,6 @@ button:disabled {
   object-fit: cover;
   border-radius: 50%;
   border: 2px solid rgba(8, 8, 8, 0.1);
-  box-shadow: 0 8px 24px rgba(8, 8, 8, 0.12);
   flex-shrink: 0;
 }
 
@@ -1011,7 +1006,6 @@ button:disabled {
   background:
     radial-gradient(circle at 24% 18%, rgba(216, 47, 47, 0.16), transparent 28%),
     rgba(255, 250, 240, 0.92);
-  box-shadow: 0 14px 34px rgba(50, 34, 16, 0.13);
   overflow: hidden;
 }
 
@@ -1175,7 +1169,6 @@ button:disabled {
   border: 2px solid var(--ink);
   border-radius: 10px;
   background: #fff2dc;
-  box-shadow: 4px 4px 0 rgba(24, 19, 13, 0.88);
   font-weight: 900;
   width: fit-content;
 }
@@ -1447,7 +1440,6 @@ button:disabled {
   background:
     linear-gradient(150deg, rgba(255, 250, 240, 0.92), rgba(255, 250, 240, 0.72)),
     radial-gradient(circle at 0 0, rgba(96, 56, 255, 0.12), transparent 34%);
-  box-shadow: var(--tight-shadow);
   overflow: hidden;
   font-family: var(--mono);
 }
