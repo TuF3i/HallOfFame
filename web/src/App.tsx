@@ -945,7 +945,7 @@ function ArchivePage({
   const [quoteRows, setQuoteRows] = useState<Quote[]>([]);
   const [quoteTotal, setQuoteTotal] = useState(0);
   const [quoteLoading, setQuoteLoading] = useState(false);
-  const QUOTE_PAGE_SIZE = 10;
+  const QUOTE_PAGE_SIZE = 6;
 
   const handleViewDetail = useCallback((quote: Quote) => {
     setDetailQuote((current) => (current?.qid === quote.qid ? null : quote));
@@ -1228,7 +1228,7 @@ function ArchivePage({
                   </tbody>
                 </table>
                 <div className="detail-field">
-                  <span className="detail-field-title">抑郁度</span>
+                  <span className="detail-field-title">⭐压抑度</span>
                   <div className="detail-suppression-bar-segmented">
                     <div className="detail-suppression-segment" style={{ opacity: detailQuote.suppression >= 20 ? 0.4 : 0.12 }} />
                     <div className="detail-suppression-segment" style={{ opacity: detailQuote.suppression >= 45 ? 0.6 : 0.12 }} />
