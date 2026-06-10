@@ -528,6 +528,15 @@ function App() {
     setQuotes((currentQuotes) => currentQuotes.filter((item) => item.qid !== quoteId));
   };
 
+  const handleRefreshQuotes = useCallback(async () => {
+    try {
+      const quoteResult = await api.quotes();
+      setQuotes(quoteResult);
+    } catch {
+      // keep current state
+    }
+  }, []);
+
   const handleUserChange = (userId: string, patch: Partial<AdminUser>) => {
     if ("role" in patch && patch.role) {
       void api.updateUserRole(userId, patch.role);
@@ -578,6 +587,7 @@ function App() {
             onToggleFeaturedQuote={handleToggleFeaturedQuote}
             onDeleteQuote={handleDeleteQuote}
             onUserChange={handleUserChange}
+            onRefreshQuotes={handleRefreshQuotes}
           />
         )}
         {settingsOpen && (
@@ -814,9 +824,9 @@ interface AuthPageProps {
 
 function AuthPage({ onAuthenticated }: AuthPageProps) {
   const [mode, setMode] = useState<AuthMode>("login");
-  const [email, setEmail] = useState("operator@hall.local");
-  const [password, setPassword] = useState("hallfame");
-  const [nickname, setNickname] = useState("Archive Operator");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [nickname, setNickname] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -876,7 +886,7 @@ function AuthPage({ onAuthenticated }: AuthPageProps) {
           <span>邮箱</span>
           <span className="input-shell">
             <Mail size={17} />
-            <input autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+            <input autoComplete="email" placeholder="请输入邮箱" value={email} onChange={(event) => setEmail(event.target.value)} />
           </span>
         </label>
         <div className={mode === "register" ? "auth-extra-field is-open" : "auth-extra-field"} aria-hidden={mode !== "register"}>
@@ -888,6 +898,7 @@ function AuthPage({ onAuthenticated }: AuthPageProps) {
                 <input
                   autoComplete="nickname"
                   disabled={mode !== "register"}
+                  placeholder="请输入昵称"
                   value={nickname}
                   onChange={(event) => setNickname(event.target.value)}
                 />
@@ -902,6 +913,7 @@ function AuthPage({ onAuthenticated }: AuthPageProps) {
             <input
               autoComplete={mode === "login" ? "current-password" : "new-password"}
               type="password"
+              placeholder="请输入密码"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
             />
@@ -1392,6 +1404,7 @@ interface AdminDashboardProps {
   onToggleFeaturedQuote: (quoteId: string) => void;
   onDeleteQuote: (quoteId: string) => void;
   onUserChange: (userId: string, patch: Partial<AdminUser>) => void;
+  onRefreshQuotes: () => void;
 }
 
 function AdminDashboard({
@@ -1407,6 +1420,7 @@ function AdminDashboard({
   onToggleFeaturedQuote,
   onDeleteQuote,
   onUserChange,
+  onRefreshQuotes,
 }: AdminDashboardProps) {
   const [adminTab, setAdminTab] = useState(0);
   const [quoteQuery, setQuoteQuery] = useState("");
@@ -1427,6 +1441,19 @@ function AdminDashboard({
 
   // Detail modal state
   const [detailQuote, setDetailQuote] = useState<Quote | null>(null);
+
+  // Create user modal state
+  const [showCreateUserModal, setShowCreateUserModal] = useState(false);
+  const [createUserEmail, setCreateUserEmail] = useState("");
+  const [createUserPassword, setCreateUserPassword] = useState("");
+  const [createUserNickname, setCreateUserNickname] = useState("");
+  const [createUserRole, setCreateUserRole] = useState("user");
+  const [createUserSubmitting, setCreateUserSubmitting] = useState(false);
+  const [createUserError, setCreateUserError] = useState("");
+
+  // Registration toggle state
+  const [registrationEnabled, setRegistrationEnabled] = useState(true);
+  const [registrationLoading, setRegistrationLoading] = useState(false);
 
   // Speaker management state
   const [speakers, setSpeakers] = useState<Speaker[]>([]);
@@ -1518,6 +1545,7 @@ function AdminDashboard({
       await api.createQuote(formData);
       setShowCreateModal(false);
       resetCreateForm();
+      onRefreshQuotes();
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : "创建失败");
     } finally {
@@ -1545,7 +1573,77 @@ function AdminDashboard({
     }
   }
 
-  
+  // Load registration config on mount
+  useEffect(() => {
+    let isActive = true;
+    async function loadRegistrationConfig() {
+      try {
+        const config = await api.getRegistrationConfig();
+        if (isActive) {
+          setRegistrationEnabled(config.registration_enabled);
+        }
+      } catch {
+        // Keep default
+      }
+    }
+    void loadRegistrationConfig();
+    return () => { isActive = false; };
+  }, []);
+
+  async function handleToggleRegistration() {
+    setRegistrationLoading(true);
+    try {
+      const newEnabled = !registrationEnabled;
+      await api.setRegistrationConfig(newEnabled);
+      setRegistrationEnabled(newEnabled);
+    } catch {
+      // Toggle failed
+    } finally {
+      setRegistrationLoading(false);
+    }
+  }
+
+  async function handleCreateUser() {
+    setCreateUserError("");
+    if (!createUserEmail.trim() || !createUserPassword.trim()) {
+      setCreateUserError("邮箱和密码不能为空");
+      return;
+    }
+    setCreateUserSubmitting(true);
+    try {
+      await api.adminCreateUser({
+        email: createUserEmail,
+        password: createUserPassword,
+        nickname: createUserNickname || createUserEmail.split("@")[0],
+        role: createUserRole,
+      });
+      setShowCreateUserModal(false);
+      resetCreateUserForm();
+      onUserPageChange(userPage === 0 ? 0 : userPage);
+    } catch (err) {
+      setCreateUserError(err instanceof Error ? err.message : "创建失败");
+    } finally {
+      setCreateUserSubmitting(false);
+    }
+  }
+
+  function resetCreateUserForm() {
+    setCreateUserEmail("");
+    setCreateUserPassword("");
+    setCreateUserNickname("");
+    setCreateUserRole("user");
+    setCreateUserError("");
+  }
+
+  async function handleDeleteUser(uid: string) {
+    try {
+      await api.adminDeleteUser(uid);
+      onUserPageChange(userPage === 0 ? 0 : userPage);
+    } catch {
+      // Deletion failed
+    }
+  }
+
   return (
     <section className="admin-page" aria-labelledby="admin-title">
       <div className="admin-head">
@@ -1557,6 +1655,17 @@ function AdminDashboard({
           <Shield size={18} />
           <span>{canManageQuotes ? "ADMIN VERIFIED" : "PREVIEW MODE"}</span>
         </div>
+        <button
+          className={registrationEnabled ? "cursor-delay-toggle is-on" : "cursor-delay-toggle"}
+          type="button"
+          aria-pressed={registrationEnabled}
+          disabled={registrationLoading}
+          onClick={handleToggleRegistration}
+          style={{ marginLeft: "auto" }}
+        >
+          <span>注册{registrationEnabled ? "开" : "关"}</span>
+          <i aria-hidden="true" />
+        </button>
       </div>
 
       <div className="admin-layout" aria-busy={loading}>
@@ -1672,11 +1781,22 @@ function AdminDashboard({
           {/* Tab 1: User List */}
           {adminTab === 1 && (
             <section className="panel table-panel user-table-panel">
-              <PanelTitle icon={User} title="用户列表" action="ACL" />
+              <div className="panel-title-row">
+                <PanelTitle icon={User} title="用户列表" action="ACL" />
+                <button
+                  type="button"
+                  className="primary-action create-quote-btn"
+                  onClick={() => setShowCreateUserModal(true)}
+                >
+                  <Plus size={16} />
+                  <span>创建用户</span>
+                </button>
+              </div>
               <div className="brutal-table user-table editable-user-table">
                 <div className="table-row table-head">
                   <span>User</span>
                   <span>Role</span>
+                  <span>操作</span>
                 </div>
                 {users.map((user) => (
                   <div className="table-row" key={user.uid}>
@@ -1690,6 +1810,15 @@ function AdminDashboard({
                       <option value="user">user</option>
                       <option value="banned">banned</option>
                     </select>
+                    <span>
+                      <button
+                        type="button"
+                        aria-label={`删除用户 ${user.nickname}`}
+                        onClick={() => handleDeleteUser(user.uid)}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </span>
                   </div>
                 ))}
               </div>
@@ -1774,6 +1903,63 @@ function AdminDashboard({
           )}
         </div>
       </div>
+
+      {/* Create User Modal */}
+      {showCreateUserModal && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="create-user-title">
+          <div className="modal-panel create-quote-modal">
+            <div className="modal-head">
+              <h2 id="create-user-title">创建用户</h2>
+              <button type="button" onClick={() => { setShowCreateUserModal(false); resetCreateUserForm(); }} aria-label="关闭">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="create-quote-form">
+              <label className="modal-field">
+                <span>邮箱 *</span>
+                <input
+                  type="email"
+                  value={createUserEmail}
+                  onChange={(e) => setCreateUserEmail(e.target.value)}
+                  placeholder="请输入邮箱"
+                />
+              </label>
+              <label className="modal-field">
+                <span>密码 *</span>
+                <input
+                  type="password"
+                  value={createUserPassword}
+                  onChange={(e) => setCreateUserPassword(e.target.value)}
+                  placeholder="请输入密码"
+                />
+              </label>
+              <label className="modal-field">
+                <span>昵称</span>
+                <input
+                  type="text"
+                  value={createUserNickname}
+                  onChange={(e) => setCreateUserNickname(e.target.value)}
+                  placeholder="请输入昵称"
+                />
+              </label>
+              <label className="modal-field">
+                <span>角色</span>
+                <select
+                  value={createUserRole}
+                  onChange={(e) => setCreateUserRole(e.target.value)}
+                >
+                  <option value="user">user</option>
+                  <option value="admin">admin</option>
+                </select>
+              </label>
+              {createUserError && <p className="form-error">{createUserError}</p>}
+              <button className="primary-action" type="button" disabled={createUserSubmitting} onClick={handleCreateUser}>
+                <span>{createUserSubmitting ? "创建中..." : "创建用户"}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Create Quote Modal */}
       {showCreateModal && (

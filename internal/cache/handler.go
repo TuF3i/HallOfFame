@@ -6,6 +6,14 @@ import (
 	"time"
 )
 
+func (r *Cache) GetRegistrationEnabled(ctx context.Context) (bool, error) {
+	return r.RedisClient.Client.Get(ctx, rediskeygen.GetRegistrationEnabledKey()).Bool()
+}
+
+func (r *Cache) SetRegistrationEnabled(ctx context.Context, enabled bool) error {
+	return r.RedisClient.Client.Set(ctx, rediskeygen.GetRegistrationEnabledKey(), enabled, 0).Err()
+}
+
 const (
 	AccessTokenTTL  = time.Hour
 	RefreshTokenTTL = 7 * 24 * time.Hour

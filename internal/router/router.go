@@ -31,7 +31,10 @@ func RegisterRoutes(h *server.Hertz, cacheClient *cache.Cache, authHandler *auth
 	adminGroup.GET("/quotes", quoteHandler.ListAllQuotes)
 	adminGroup.POST("/quotes", quoteHandler.CreateQuote)
 	adminGroup.GET("/users", adminHandler.ListUsers)
+	adminGroup.POST("/users", adminHandler.CreateUser)
 	adminGroup.GET("/login-logs", adminHandler.ListLoginLogs)
+	adminGroup.GET("/settings/registration", adminHandler.GetRegistrationConfig)
+	adminGroup.PUT("/settings/registration", adminHandler.SetRegistrationConfig)
 	// 参数化路由
 	adminGroup.PUT("/users/:uid/role", adminHandler.UpdateRole)
 	adminGroup.DELETE("/users/:uid", adminHandler.DeleteUser)

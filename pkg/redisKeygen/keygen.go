@@ -13,3 +13,7 @@ func GetUserRefreshTokenKey(uid string) string {
 func GetBotMessageQueueKey() string {
 	return "bot:message_queue"
 }
+
+func GetRegistrationEnabledKey() string {
+	return "settings:registration_enabled"
+}

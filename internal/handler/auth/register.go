@@ -16,6 +16,13 @@ import (
 const minPasswordLength = 5
 
 func (h *AuthHandler) Register(c context.Context, ctx *app.RequestContext) {
+	// Check if registration is enabled
+	enabled, err := h.cache.GetRegistrationEnabled(c)
+	if err == nil && !enabled {
+		ctx.JSON(200, dto.Error(dto.ErrForbidden, "注册已关闭"))
+		return
+	}
+
 	var req dto.RegisterReq
 	if err := ctx.BindAndValidate(&req); err != nil {
 		ctx.JSON(200, dto.Error(dto.ErrBadRequest, err.Error()))
@@ -23,7 +30,7 @@ func (h *AuthHandler) Register(c context.Context, ctx *app.RequestContext) {
 	}
 
 	// Check if email already exists
-	_, err := h.dao.GetUser(c, req.Email)
+	_, err = h.dao.GetUser(c, req.Email)
 	if err == nil {
 		ctx.JSON(200, dto.Error(dto.ErrConflict, "email already registered"))
 		return

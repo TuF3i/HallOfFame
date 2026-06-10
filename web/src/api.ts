@@ -155,10 +155,34 @@ const realApi = {
     return request<PageResult<AdminUser>>(`/api/admin/users?page=${page}&page_size=${pageSize}`, {}, true);
   },
 
+  async adminCreateUser(data: {email: string; password: string; nickname: string; role: string}): Promise<void> {
+    await request<void>("/api/admin/users", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }, true);
+  },
+
+  async adminDeleteUser(uid: string): Promise<void> {
+    await request<void>(`/api/admin/users/${uid}`, {
+      method: "DELETE",
+    }, true);
+  },
+
   async updateUserRole(uid: string, role: string): Promise<void> {
     await request<void>(`/api/admin/users/${uid}/role`, {
       method: "PUT",
       body: JSON.stringify({ role }),
+    }, true);
+  },
+
+  async getRegistrationConfig(): Promise<{registration_enabled: boolean}> {
+    return request<{registration_enabled: boolean}>("/api/admin/settings/registration", {}, true);
+  },
+
+  async setRegistrationConfig(enabled: boolean): Promise<{registration_enabled: boolean}> {
+    return request<{registration_enabled: boolean}>("/api/admin/settings/registration", {
+      method: "PUT",
+      body: JSON.stringify({enabled}),
     }, true);
   },
 
@@ -342,6 +366,35 @@ const mockApi = {
 
   async adminUsers(page = 1, pageSize = 20): Promise<PageResult<AdminUser>> {
     return delay(clonePage(paginate(mockState.users, page, pageSize), cloneUser));
+  },
+
+  async adminCreateUser(data: {email: string; password: string; nickname: string; role: string}): Promise<void> {
+    if (data.role !== "admin" && data.role !== "user") {
+      throw new ApiError("Unsupported mock role.", 400);
+    }
+    const uid = `mock-user-${data.email.replace(/[^a-z0-9]+/g, "-")}`;
+    mockState.users.unshift({
+      uid,
+      email: data.email,
+      nickname: data.nickname || data.email.split("@")[0],
+      role: data.role,
+      last_login: new Date().toISOString().slice(0, 19).replace("T", " "),
+      enabled: true,
+    });
+    return delay(undefined);
+  },
+
+  async adminDeleteUser(uid: string): Promise<void> {
+    mockState.users = mockState.users.filter((user) => user.uid !== uid);
+    return delay(undefined);
+  },
+
+  async getRegistrationConfig(): Promise<{registration_enabled: boolean}> {
+    return delay({ registration_enabled: true });
+  },
+
+  async setRegistrationConfig(enabled: boolean): Promise<{registration_enabled: boolean}> {
+    return delay({ registration_enabled: enabled });
   },
 
   async updateUserRole(uid: string, role: string): Promise<void> {

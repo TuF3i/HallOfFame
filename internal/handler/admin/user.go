@@ -6,9 +6,67 @@ import (
 
 	"HallOfFame/internal/consumer"
 	"HallOfFame/internal/dto"
+	"HallOfFame/internal/models"
 
 	"github.com/cloudwego/hertz/pkg/app"
+	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 )
+
+func (h *AdminHandler) CreateUser(c context.Context, ctx *app.RequestContext) {
+	var req struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+		Nickname string `json:"nickname"`
+		Role     string `json:"role"`
+	}
+	if err := ctx.BindAndValidate(&req); err != nil {
+		ctx.JSON(200, dto.Error(dto.ErrBadRequest, err.Error()))
+		return
+	}
+
+	// Check if email already exists
+	_, err := h.dao.GetUser(c, req.Email)
+	if err == nil {
+		ctx.JSON(200, dto.Error(dto.ErrConflict, "邮箱已被注册"))
+		return
+	}
+
+	// Validate password length
+	if len(req.Password) < 5 {
+		ctx.JSON(200, dto.Error(dto.ErrBadRequest, "password must be at least 5 characters"))
+		return
+	}
+
+	// Hash password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		ctx.JSON(200, dto.Error(dto.ErrInternal, err.Error()))
+		return
+	}
+
+	uid := uuid.New().String()
+
+	role := req.Role
+	if role != "admin" && role != "user" && role != "banned" {
+		role = "user"
+	}
+
+	user := &models.User{
+		Uid:      uid,
+		Email:    req.Email,
+		Password: string(hashedPassword),
+		Nickname: req.Nickname,
+		Role:     role,
+	}
+
+	if err := h.dao.AddUser(c, user); err != nil {
+		ctx.JSON(200, dto.Error(dto.ErrInternal, err.Error()))
+		return
+	}
+
+	ctx.JSON(200, dto.SuccessResp(dto.UserToDTO(user)))
+}
 
 func (h *AdminHandler) ListUsers(c context.Context, ctx *app.RequestContext) {
 	page, _ := strconv.Atoi(ctx.Query("page"))
@@ -129,6 +187,31 @@ func (h *AdminHandler) ListLoginLogs(c context.Context, ctx *app.RequestContext)
 		Page:     page,
 		PageSize: pageSize,
 	}))
+}
+
+func (h *AdminHandler) GetRegistrationConfig(c context.Context, ctx *app.RequestContext) {
+	enabled, err := h.cache.GetRegistrationEnabled(c)
+	if err != nil {
+		// Default to enabled if not set
+		ctx.JSON(200, dto.SuccessResp(map[string]bool{"registration_enabled": true}))
+		return
+	}
+	ctx.JSON(200, dto.SuccessResp(map[string]bool{"registration_enabled": enabled}))
+}
+
+func (h *AdminHandler) SetRegistrationConfig(c context.Context, ctx *app.RequestContext) {
+	var req struct {
+		Enabled bool `json:"enabled"`
+	}
+	if err := ctx.BindAndValidate(&req); err != nil {
+		ctx.JSON(200, dto.Error(dto.ErrBadRequest, err.Error()))
+		return
+	}
+	if err := h.cache.SetRegistrationEnabled(c, req.Enabled); err != nil {
+		ctx.JSON(200, dto.Error(dto.ErrInternal, err.Error()))
+		return
+	}
+	ctx.JSON(200, dto.SuccessResp(map[string]bool{"registration_enabled": req.Enabled}))
 }
 
 func (h *AdminHandler) TriggerAnalysis(c context.Context, ctx *app.RequestContext) {
