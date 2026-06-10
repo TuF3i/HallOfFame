@@ -1444,6 +1444,8 @@ function AdminDashboard({
 
   // Create user modal state
   const [showCreateUserModal, setShowCreateUserModal] = useState(false);
+  const [triggering, setTriggering] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
   const [createUserEmail, setCreateUserEmail] = useState("");
   const [createUserPassword, setCreateUserPassword] = useState("");
   const [createUserNickname, setCreateUserNickname] = useState("");
@@ -1603,6 +1605,19 @@ function AdminDashboard({
     }
   }
 
+  async function handleTriggerAnalysis() {
+    setTriggering(true);
+    try {
+      await api.triggerAnalysis();
+      setToast("AI 分析任务已触发");
+      setTimeout(() => setToast(null), 3000);
+    } catch (err) {
+      console.error("trigger analysis failed:", err);
+    } finally {
+      setTriggering(false);
+    }
+  }
+
   async function handleCreateUser() {
     setCreateUserError("");
     if (!createUserEmail.trim() || !createUserPassword.trim()) {
@@ -1725,6 +1740,15 @@ function AdminDashboard({
                 >
                   <Plus size={16} />
                   <span>手动创建言论</span>
+                </button>
+                <button
+                  type="button"
+                  className="primary-action create-quote-btn"
+                  disabled={triggering}
+                  onClick={handleTriggerAnalysis}
+                >
+                  <Sparkles size={16} />
+                  <span>{triggering ? "触发中..." : "触发AI分析"}</span>
                 </button>
               </div>
               <div className="admin-table-tools">
@@ -2154,6 +2178,7 @@ function AdminDashboard({
           </div>
         </div>
       )}
+      {toast && <div className="toast">{toast}</div>}
     </section>
   );
 }

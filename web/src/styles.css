@@ -3242,3 +3242,25 @@ button:disabled {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* Toast */
+.toast {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 9999;
+  padding: 12px 20px;
+  border: 2px solid var(--ink);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 0.88rem;
+  font-weight: 750;
+  font-family: var(--mono);
+  animation: toast-in 240ms ease;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}

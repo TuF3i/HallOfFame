@@ -302,20 +302,20 @@
 
 #### POST /api/bot/upload
 
-上传消息到 Redis 队列。
+上传消息到 Redis 队列。使用 multipart/form-data 编码。
 
-**请求：**
-```json
-{
-  "qqgroup": "群号",
-  "qqnumber": "发言者QQ号",
-  "speaker": "发言者昵称",
-  "content": "消息内容",
-  "avatar": "用户头像URL（可选）",
-  "groupname": "群名称（可选）",
-  "groupavatar": "群头像URL（可选）"
-}
-```
+**请求（multipart/form-data）：**
+
+| 字段 | 类型 | 必需 | 说明 |
+|------|------|------|------|
+| qqgroup | string | 是 | 群号 |
+| qqnumber | string | 是 | 发言者 QQ 号 |
+| speaker | string | 是 | 发言者昵称 |
+| content | string | 是 | 消息内容 |
+| avatar | string | 否 | 用户头像 URL |
+| groupname | string | 否 | 群名称 |
+| groupavatar | string | 否 | 群头像 URL |
+| files | file[] | 否 | 附件图片 |
 
 **响应：**
 ```json

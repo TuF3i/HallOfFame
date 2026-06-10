@@ -168,6 +168,12 @@ const realApi = {
     }, true);
   },
 
+  async triggerAnalysis(): Promise<void> {
+    await request<void>("/api/admin/quotes/trigger", {
+      method: "POST",
+    }, true);
+  },
+
   async updateUserRole(uid: string, role: string): Promise<void> {
     await request<void>(`/api/admin/users/${uid}/role`, {
       method: "PUT",
@@ -386,6 +392,10 @@ const mockApi = {
 
   async adminDeleteUser(uid: string): Promise<void> {
     mockState.users = mockState.users.filter((user) => user.uid !== uid);
+    return delay(undefined);
+  },
+
+  async triggerAnalysis(): Promise<void> {
     return delay(undefined);
   },
 

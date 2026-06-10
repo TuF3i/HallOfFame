@@ -229,32 +229,6 @@ components:
         featured:
           type: boolean
 
-    BotUploadRequest:
-      type: object
-      required: [qqgroup, qqnumber, speaker, content]
-      properties:
-        qqgroup:
-          type: string
-          description: 群号
-        qqnumber:
-          type: string
-          description: 发言者 QQ 号
-        speaker:
-          type: string
-          description: 发言者昵称
-        content:
-          type: string
-          description: 消息内容
-        avatar:
-          type: string
-          description: 用户头像 URL
-        groupname:
-          type: string
-          description: 群名称
-        groupavatar:
-          type: string
-          description: 群头像 URL
-
     # 实体 Schema
     UserInfo:
       type: object
@@ -727,17 +701,46 @@ paths:
   /api/bot/upload:
     post:
       tags: [Bot]
-      summary: QQ Bot 消息上传
-      description: 消息推入 Redis 队列，后台 Consumer 异步分析
+      summary: QQ Bot 消息上传（支持附件）
+      description: 消息推入 Redis 队列，后台 Consumer 异步分析。使用 multipart/form-data，可选上传图片附件。
       servers:
         - url: http://localhost:9090
           description: Bot API
       requestBody:
         required: true
         content:
-          application/json:
+          multipart/form-data:
             schema:
-              $ref: "#/components/schemas/BotUploadRequest"
+              type: object
+              required: [qqgroup, qqnumber, speaker, content]
+              properties:
+                qqgroup:
+                  type: string
+                  description: 群号
+                qqnumber:
+                  type: string
+                  description: 发言者 QQ 号
+                speaker:
+                  type: string
+                  description: 发言者昵称
+                content:
+                  type: string
+                  description: 消息内容
+                avatar:
+                  type: string
+                  description: 用户头像 URL
+                groupname:
+                  type: string
+                  description: 群名称
+                groupavatar:
+                  type: string
+                  description: 群头像 URL
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                  description: 附件图片
       responses:
         "200":
           description: 操作结果
