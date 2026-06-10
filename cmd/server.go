@@ -95,7 +95,7 @@ var serverCmd = &cobra.Command{
 		authHandler := auth.NewAuthHandler(d, c)
 		adminHandler := admin.NewAdminHandler(d, c)
 		quoteHandler := quote.NewQuoteHandler(d, s)
-		botHandler := bot.NewBotHandler(c, s)
+		botHandler := bot.NewBotHandler(d, c, s)
 
 		// Engine
 		eng := engine.NewEngine(&engine.EngineReliance{

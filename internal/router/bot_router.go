@@ -10,4 +10,5 @@ import (
 // RegisterBotRoutes 注册 QQ Bot 专用路由（无鉴权）
 func RegisterBotRoutes(h *server.Hertz, cacheClient *cache.Cache, botHandler *bot.BotHandler) {
 	h.POST("/api/bot/upload", botHandler.Upload)
+	h.POST("/api/bot/import", botHandler.Import)
 }

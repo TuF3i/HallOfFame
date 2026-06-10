@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"HallOfFame/internal/cache"
+	"HallOfFame/internal/dao"
 	"HallOfFame/internal/dto"
+	"HallOfFame/internal/models"
 	"HallOfFame/internal/storage"
 
 	"github.com/cloudwego/hertz/pkg/app"
@@ -28,12 +30,13 @@ type BotUploadMsg struct {
 }
 
 type BotHandler struct {
+	dao     *dao.Dao
 	cache   *cache.Cache
 	storage *storage.Storage
 }
 
-func NewBotHandler(c *cache.Cache, s *storage.Storage) *BotHandler {
-	return &BotHandler{cache: c, storage: s}
+func NewBotHandler(d *dao.Dao, c *cache.Cache, s *storage.Storage) *BotHandler {
+	return &BotHandler{dao: d, cache: c, storage: s}
 }
 
 func (h *BotHandler) Upload(c context.Context, ctx *app.RequestContext) {
@@ -102,4 +105,67 @@ func (h *BotHandler) Upload(c context.Context, ctx *app.RequestContext) {
 	}
 
 	ctx.JSON(200, dto.SuccessResp(nil))
+}
+
+func (h *BotHandler) Import(c context.Context, ctx *app.RequestContext) {
+	multipartForm, err := ctx.MultipartForm()
+	if err != nil {
+		ctx.JSON(200, dto.Error(dto.ErrBadRequest, "invalid multipart form"))
+		return
+	}
+
+	getVal := func(key string) string {
+		if vals := multipartForm.Value[key]; len(vals) > 0 {
+			return vals[0]
+		}
+		return ""
+	}
+
+	qqgroup := getVal("qqgroup")
+	qqnumber := getVal("qqnumber")
+	speaker := getVal("speaker")
+	content := getVal("content")
+
+	if qqgroup == "" || qqnumber == "" || speaker == "" || content == "" {
+		ctx.JSON(200, dto.Error(dto.ErrBadRequest, "missing required fields: qqgroup, qqnumber, speaker, content"))
+		return
+	}
+
+	qid := uuid.New().String()
+	attachmentIDs := make([]string, 0)
+	files := multipartForm.File["files"]
+	for _, file := range files {
+		attID := uuid.New().String()
+		minioKey := fmt.Sprintf("attachments/%s/%s", qid, attID)
+		if err := h.storage.UploadFile(c, minioKey, file); err != nil {
+			ctx.JSON(200, dto.Error(dto.ErrInternal, "upload attachment failed"))
+			return
+		}
+		attachmentIDs = append(attachmentIDs, attID)
+	}
+
+	quote := &models.Quotes{
+		QID:         qid,
+		Content:     content,
+		Suppression: 0,
+		UserData: models.UserMeta{
+			QQNumber: qqnumber,
+			Speaker:  speaker,
+			Avatar:   getVal("avatar"),
+		},
+		GroupData: models.GroupData{
+			GroupNumber: qqgroup,
+			GroupName:   getVal("groupname"),
+			Avatar:      getVal("groupavatar"),
+		},
+		AttachmentID: attachmentIDs,
+		IsFeatured:   false,
+	}
+
+	if err := h.dao.AddQuote(c, quote); err != nil {
+		ctx.JSON(200, dto.Error(dto.ErrInternal, "failed to save quote"))
+		return
+	}
+
+	ctx.JSON(200, dto.SuccessResp(dto.QuoteToDTO(quote)))
 }

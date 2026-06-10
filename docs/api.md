@@ -327,3 +327,44 @@
 ```
 
 消息进入 Redis List `bot:message_queue`，由后台 Consumer 协程每 10 秒检查队列长度，积压到 300 条或每天午夜 00:00 时发送给 LLM 分析，提取 0-15 条高性压抑值的发言写入 MongoDB。
+
+#### POST /api/bot/import
+
+直接写入数据库（不进 Redis 缓冲区），用于已筛选发言即时入库。
+
+**请求（multipart/form-data）：**
+
+| 字段 | 类型 | 必需 | 说明 |
+|------|------|------|------|
+| qqgroup | string | 是 | 群号 |
+| qqnumber | string | 是 | 发言者 QQ 号 |
+| speaker | string | 是 | 发言者昵称 |
+| content | string | 是 | 消息内容 |
+| avatar | string | 否 | 用户头像 URL |
+| groupname | string | 否 | 群名称 |
+| groupavatar | string | 否 | 群头像 URL |
+| files | file[] | 否 | 附件图片 |
+
+**响应：**
+```json
+{
+  "code": 10200,
+  "data": {
+    "qid": "uuid",
+    "content": "消息内容",
+    "suppression": 0,
+    "userdata": {
+      "qqnumber": "123456",
+      "speaker": "昵称",
+      "avatar": "url"
+    },
+    "groupdata": {
+      "groupnumber": "群号",
+      "groupname": "群名",
+      "avatar": "url"
+    },
+    "attachmentid": [],
+    "is_featured": false
+  }
+}
+```

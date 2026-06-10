@@ -748,3 +748,54 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/OkResponse"
+
+  /api/bot/import:
+    post:
+      tags: [Bot]
+      summary: 直接导入发言到数据库
+      description: 跳过 Redis 缓冲区，直接将发言写入 MongoDB。支持可选附件上传。
+      servers:
+        - url: http://localhost:9090
+          description: Bot API
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [qqgroup, qqnumber, speaker, content]
+              properties:
+                qqgroup:
+                  type: string
+                  description: 群号
+                qqnumber:
+                  type: string
+                  description: 发言者 QQ 号
+                speaker:
+                  type: string
+                  description: 发言者昵称
+                content:
+                  type: string
+                  description: 消息内容
+                avatar:
+                  type: string
+                  description: 用户头像 URL
+                groupname:
+                  type: string
+                  description: 群名称
+                groupavatar:
+                  type: string
+                  description: 群头像 URL
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                  description: 附件图片
+      responses:
+        "200":
+          description: 操作结果
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuotePageResponse"
