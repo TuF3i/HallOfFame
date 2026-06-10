@@ -1794,13 +1794,15 @@ function AdminDashboard({
               </div>
               <div className="brutal-table user-table editable-user-table">
                 <div className="table-row table-head">
-                  <span>User</span>
+                  <span>用户昵称</span>
+                  <span>邮箱</span>
                   <span>Role</span>
                   <span>操作</span>
                 </div>
                 {users.map((user) => (
                   <div className="table-row" key={user.uid}>
                     <span>{user.nickname}</span>
+                    <span>{user.email}</span>
                     <select
                       value={user.role}
                       aria-label={`${user.nickname} role`}
@@ -1813,6 +1815,7 @@ function AdminDashboard({
                     <span>
                       <button
                         type="button"
+                        className="user-delete-btn"
                         aria-label={`删除用户 ${user.nickname}`}
                         onClick={() => handleDeleteUser(user.uid)}
                       >

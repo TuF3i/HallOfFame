@@ -1858,8 +1858,11 @@ button:disabled {
 }
 
 .modal-field textarea,
+.modal-field select,
 .modal-field input[type="number"],
-.modal-field input[type="text"] {
+.modal-field input[type="text"],
+.modal-field input[type="email"],
+.modal-field input[type="password"] {
   width: 100%;
   min-width: 0;
   padding: 10px 12px;
@@ -1871,6 +1874,7 @@ button:disabled {
   resize: vertical;
 }
 
+.modal-field select:focus,
 .modal-field textarea:focus,
 .modal-field input:focus {
   outline: 0;
@@ -1881,13 +1885,18 @@ button:disabled {
 .global-file-input,
 .modal-field input[type="file"] {
   padding: 10px 12px;
-  border: 1px solid rgba(8, 8, 8, 0.16);
-  border-radius: 6px;
-  background: #f8f8f6;
+  border: 2px solid var(--ink);
+  border-radius: 4px;
+  background: var(--paper);
   font-size: 0.86rem;
   font-family: inherit;
   cursor: pointer;
   transition: border-color 180ms ease, background 180ms ease;
+}
+
+.global-file-input:hover,
+.modal-field input[type="file"]:hover {
+  background: rgba(8, 8, 8, 0.04);
 }
 
 .global-file-input:focus,
@@ -2285,7 +2294,7 @@ button:disabled {
 }
 
 .user-table .table-row {
-  grid-template-columns: minmax(92px, 1fr) 106px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 90px 70px;
   gap: 12px;
 }
 
@@ -2315,6 +2324,24 @@ button:disabled {
   border-radius: 999px;
   padding: 0;
   box-shadow: none;
+}
+
+.user-delete-btn {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 999px;
+  padding: 0;
+  box-shadow: none;
+}
+
+.user-delete-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(24, 19, 13, 0.78);
+  background:
+    linear-gradient(135deg, rgba(216, 47, 47, 0.08), transparent 48%),
+    rgba(255, 250, 240, 0.94);
 }
 
 .switch-cluster button span {
@@ -3012,7 +3039,7 @@ button:disabled {
   }
 
   .user-table .table-row {
-    grid-template-columns: minmax(92px, 1fr) 106px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 90px 70px;
   }
 }
 
@@ -3180,7 +3207,7 @@ button:disabled {
   }
 
   .user-table .table-row {
-    grid-template-columns: minmax(0, 1fr) 92px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 90px 70px;
   }
 
   .settings-panel {
