@@ -10,7 +10,7 @@ RUN node scripts/build.mjs
 FROM docker.jiaxin.site/library/golang:1.24-alpine AS backend-builder
 WORKDIR /app
 COPY go.mod go.sum ./
-RUN go mod download
+RUN go env -w GOPROXY=https://goproxy.cn,direct && go mod download
 COPY . .
 RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o server ./cmd/server/
 
