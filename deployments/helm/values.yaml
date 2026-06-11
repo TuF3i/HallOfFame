@@ -10,6 +10,12 @@ service:
   webPort: 8080
   botPort: 9090
 
+ingress:
+  enabled: false
+  className: traefik
+  host: halloffame.example.com
+  annotations: {}
+
 etcd:
   addr: "halloffame-etcd"
   port: 2379
