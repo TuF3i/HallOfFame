@@ -1,0 +1,6 @@
+apiVersion: v2
+name: halloffame
+description: HallOfFame - QQ 群聊天记录管理与恶搞分析平台
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

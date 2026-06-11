@@ -1,0 +1,106 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: hof-postgres
+    environment:
+      POSTGRES_DB: halloffame
+      POSTGRES_USER: halloffame
+      POSTGRES_PASSWORD: halloffame
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - halloffame-net
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: hof-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - halloffame-net
+    restart: unless-stopped
+
+  mongodb:
+    image: mongo:7
+    container_name: hof-mongodb
+    environment:
+      MONGO_INITDB_DATABASE: halloffame
+      MONGO_INITDB_ROOT_USERNAME: mongodb
+      MONGO_INITDB_ROOT_PASSWORD: mongodb
+    volumes:
+      - mongo_data:/data/db
+    ports:
+      - "27017:27017"
+    networks:
+      - halloffame-net
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    container_name: hof-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    networks:
+      - halloffame-net
+    restart: unless-stopped
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: hof-minio-init
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until (/usr/bin/mc alias set local http://minio:9000 minioadmin minioadmin) do echo '...waiting...' && sleep 1; done;
+      /usr/bin/mc mb local/halloffame --ignore-existing;
+      exit 0;
+      "
+    networks:
+      - halloffame-net
+
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: hof-app
+    depends_on:
+      postgres:
+        condition: service_started
+      redis:
+        condition: service_started
+      mongodb:
+        condition: service_started
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      CONFIG_PATH: /app/config.json
+      FRONTEND_DIR: /app/frontend
+    volumes:
+      - ./config.json:/app/config.json
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    networks:
+      - halloffame-net
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  mongo_data:
+  minio_data:
+
+networks:
+  halloffame-net:
+    driver: bridge

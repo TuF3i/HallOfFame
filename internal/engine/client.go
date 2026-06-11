@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"HallOfFame/config"
@@ -16,6 +19,7 @@ import (
 	"HallOfFame/internal/middleware"
 	"HallOfFame/internal/router"
 
+	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/app/server"
 )
 
@@ -26,6 +30,26 @@ func (e *Engine) Start(ctx context.Context, cfg *config.Config, authHandler *aut
 	h.Use(middleware.CORSHandler())
 
 	router.RegisterRoutes(h, e.Cache, authHandler, adminHandler, quoteHandler)
+
+	// 前端静态文件服务（SPA fallback）
+	frontendDir := os.Getenv("FRONTEND_DIR")
+	if frontendDir != "" {
+		h.GET("/*filepath", func(c context.Context, ctx *app.RequestContext) {
+			path := string(ctx.Path())
+			if strings.HasPrefix(path, "/api") {
+				ctx.Next(c)
+				return
+			}
+			filePath := filepath.Join(frontendDir, path)
+			if info, err := os.Stat(filePath); err == nil && !info.IsDir() {
+				ctx.File(filePath)
+				return
+			}
+			// SPA fallback
+			ctx.File(filepath.Join(frontendDir, "index.html"))
+		})
+		log.Printf("frontend static files serving from %s", frontendDir)
+	}
 
 	go func() {
 		h.Spin()

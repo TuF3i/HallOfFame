@@ -1,0 +1,42 @@
+{
+  "hertzConf": {
+    "listenAddr": "0.0.0.0",
+    "webApiListerPort": 8080,
+    "botApiListenPort": 9090
+  },
+  "redisConf": {
+    "addr": "redis",
+    "port": 6379,
+    "password": "",
+    "db": 0
+  },
+  "mongoDBConf": {
+    "addr": "mongodb",
+    "port": 27017,
+    "database": "halloffame",
+    "username": "mongodb",
+    "password": "mongodb"
+  },
+  "postgreSQLConf": {
+    "addr": "postgres",
+    "port": 5432,
+    "database": "halloffame",
+    "username": "halloffame",
+    "password": "halloffame"
+  },
+  "minioConf": {
+    "addr": "minio",
+    "port": 9000,
+    "username": "minioadmin",
+    "password": "minioadmin",
+    "bucket": "halloffame"
+  },
+  "llmConf": {
+    "provider": "openai",
+    "apiKey": "sk-your-api-key",
+    "baseURL": "https://api.deepseek.com/v1",
+    "model": "deepseek-chat",
+    "batchSize": 300,
+    "maxResults": 15
+  }
+}
