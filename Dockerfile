@@ -7,7 +7,7 @@ COPY web/ ./
 RUN node scripts/build.mjs
 
 # Stage 2: Build backend
-FROM docker.jiaxin.site/library/golang:1.24-alpine AS backend-builder
+FROM docker.jiaxin.site/library/golang:1.25.0-alpine AS backend-builder
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go env -w GOPROXY=https://goproxy.cn,direct && go mod download
