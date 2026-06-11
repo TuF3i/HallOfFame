@@ -25,7 +25,6 @@ COPY --from=frontend-builder /web/dist ./frontend
 COPY config/config.json ./config.json
 
 ENV FRONTEND_DIR=/app/frontend
-ENV CONFIG_PATH=/app/config.json
 
 EXPOSE 8080 9090
 
