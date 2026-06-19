@@ -272,21 +272,24 @@ function createPeopleFromQuotes(quotes: Quote[]): QuotePerson[] {
     return [];
   }
 
-  const peopleBySpeaker = new Map<string, Quote[]>();
+  // 按 qqnumber 分组，避免同一用户因改群昵称而重复显示
+  const peopleByQQ = new Map<string, Quote[]>();
   quotes.forEach((quote) => {
-    const key = quote.userdata?.speaker || "群友匿名";
-    peopleBySpeaker.set(key, [...(peopleBySpeaker.get(key) ?? []), quote]);
+    const key = quote.userdata?.qqnumber || quote.userdata?.speaker || "群友匿名";
+    peopleByQQ.set(key, [...(peopleByQQ.get(key) ?? []), quote]);
   });
 
   const portraitTypes: QuotePerson["portrait"][] = ["circles", "slices", "halo", "mesh"];
-  return Array.from(peopleBySpeaker.entries())
+  return Array.from(peopleByQQ.entries())
     .slice(0, 8)
-    .map(([speaker, list], index) => {
+    .map(([qqnumber, list], index) => {
       const sorted = [...list].sort((a, b) => Number(Boolean(b.is_featured)) - Number(Boolean(a.is_featured)));
+      // 昵称取最新一条消息的 speaker，确保改名后自动更新
+      const latestSpeaker = list[list.length - 1]?.userdata?.speaker || "群友匿名";
       return {
-        id: `${speaker}-${index}`,
-        name: speaker,
-        qqnumber: sorted[0]?.userdata?.qqnumber ?? "",
+        id: `${qqnumber}-${index}`,
+        name: latestSpeaker,
+        qqnumber,
         quoteCount: list.length,
         qqGroup: sorted[0]?.groupdata?.groupnumber ?? "UNKNOWN",
         role: index % 2 === 0 ? "群内高频发言人" : "档案收录对象",
@@ -503,6 +506,8 @@ function App() {
     } catch {}
     setProfile(result.user);
     setView("archive");
+    // 登录后立即加载 quotes，避免首次进入 archive 页面为空
+    void api.quotes().then(setQuotes).catch(() => {});
   };
 
   const handleSignOut = () => {
