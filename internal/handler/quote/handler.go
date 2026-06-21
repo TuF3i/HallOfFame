@@ -313,7 +313,7 @@ func getPageParams(ctx *app.RequestContext) (int, int) {
 		page = 1
 	}
 	pageSize, _ := strconv.Atoi(ctx.Query("page_size"))
-	if pageSize < 1 || pageSize > 100 {
+	if pageSize < 1 || pageSize > 10000 {
 		pageSize = 20
 	}
 	return page, pageSize

@@ -233,8 +233,18 @@ const realApi = {
     );
   },
 
+  async featuredQuotesAll(): Promise<Quote[]> {
+    const data = await this.featuredQuotes(1, 10000);
+    return data.items;
+  },
+
   async listSpeakers(page = 1, pageSize = 50): Promise<PageResult<Speaker>> {
     return request<PageResult<Speaker>>(`/api/quotes/speakers?page=${page}&page_size=${pageSize}`, {}, true);
+  },
+
+  async listSpeakersAll(): Promise<Speaker[]> {
+    const data = await this.listSpeakers(1, 10000);
+    return data.items;
   },
 
   async deleteSpeaker(qqNumber: string): Promise<void> {
@@ -474,9 +484,17 @@ const mockApi = {
     return delay(clonePage(paginate(featured, page, pageSize), cloneQuote));
   },
 
+  async featuredQuotesAll(): Promise<Quote[]> {
+    return delay(mockState.quotes.filter((q) => q.is_featured).map(cloneQuote));
+  },
+
   async listSpeakers(page = 1, pageSize = 50): Promise<PageResult<Speaker>> {
     const speakers = speakersFromQuotes(mockState.quotes, mockState.hiddenSpeakerIds);
     return delay(clonePage(paginate(speakers, page, pageSize), cloneSpeaker));
+  },
+
+  async listSpeakersAll(): Promise<Speaker[]> {
+    return delay(speakersFromQuotes(mockState.quotes, mockState.hiddenSpeakerIds).map(cloneSpeaker));
   },
 
   async deleteSpeaker(qqNumber: string): Promise<void> {

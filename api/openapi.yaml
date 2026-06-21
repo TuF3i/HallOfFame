@@ -374,6 +374,7 @@ paths:
           schema:
             type: integer
             default: 20
+            maximum: 10000
       responses:
         "200":
           description: 操作结果
@@ -405,6 +406,7 @@ paths:
           schema:
             type: integer
             default: 20
+            maximum: 10000
       responses:
         "200":
           description: 操作结果
@@ -431,6 +433,7 @@ paths:
           schema:
             type: integer
             default: 20
+            maximum: 10000
       responses:
         "200":
           description: 操作结果
@@ -486,6 +489,7 @@ paths:
           schema:
             type: integer
             default: 20
+            maximum: 10000
       responses:
         "200":
           description: 操作结果
@@ -649,6 +653,7 @@ paths:
           schema:
             type: integer
             default: 20
+            maximum: 10000
       responses:
         "200":
           description: 操作结果

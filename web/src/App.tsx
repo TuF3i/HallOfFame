@@ -267,38 +267,20 @@ function getHashView(): View | null {
   return views.some((item) => item === hashView) ? hashView : null;
 }
 
-function createPeopleFromQuotes(quotes: Quote[]): QuotePerson[] {
-  if (!quotes.length) {
-    return [];
-  }
-
-  // 按 qqnumber 分组，避免同一用户因改群昵称而重复显示
-  const peopleByQQ = new Map<string, Quote[]>();
-  quotes.forEach((quote) => {
-    const key = quote.userdata?.qqnumber || quote.userdata?.speaker || "群友匿名";
-    peopleByQQ.set(key, [...(peopleByQQ.get(key) ?? []), quote]);
-  });
+function createPeopleFromSpeakers(speakers: Speaker[]): QuotePerson[] {
+  if (!speakers.length) return [];
 
   const portraitTypes: QuotePerson["portrait"][] = ["circles", "slices", "halo", "mesh"];
-  return Array.from(peopleByQQ.entries())
-    .slice(0, 8)
-    .map(([qqnumber, list], index) => {
-      const sorted = [...list].sort((a, b) => Number(Boolean(b.is_featured)) - Number(Boolean(a.is_featured)));
-      // 昵称取最新一条消息的 speaker，确保改名后自动更新
-      const latestSpeaker = list[list.length - 1]?.userdata?.speaker || "群友匿名";
-      return {
-        id: `${qqnumber}-${index}`,
-        name: latestSpeaker,
-        qqnumber,
-        quoteCount: list.length,
-        qqGroup: sorted[0]?.groupdata?.groupnumber ?? "UNKNOWN",
-        role: index % 2 === 0 ? "群内高频发言人" : "档案收录对象",
-        signal: `DAY ${String(13 + index * 2).padStart(2, "0")} / DISK ${String.fromCharCode(65 + index)}`,
-        portrait: portraitTypes[index % portraitTypes.length],
-        featuredQuote: sorted[0],
-        history: [...sorted].reverse(),
-      };
-    });
+  return speakers.map((speaker, index) => ({
+    id: `${speaker.qqnumber}-${index}`,
+    name: speaker.speaker || "群友匿名",
+    qqnumber: speaker.qqnumber,
+    quoteCount: speaker.quote_count,
+    qqGroup: "—",
+    role: index % 2 === 0 ? "群内高频发言人" : "档案收录对象",
+    signal: `DAY ${String(13 + index * 2).padStart(2, "0")} / DISK ${String.fromCharCode(65 + index)}`,
+    portrait: portraitTypes[index % portraitTypes.length],
+  }));
 }
 
 function parseJwtExpiry(token: string): number | null {
@@ -322,6 +304,7 @@ function App() {
     }
   });
   const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [allSpeakers, setAllSpeakers] = useState<Speaker[]>([]);
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [loginLogs, setLoginLogs] = useState<LoginLog[]>([]);
   const [userPage, setUserPage] = useState(0);
@@ -332,7 +315,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [sessionExpired, setSessionExpired] = useState(false);
   const appShellRef = useRef<HTMLElement | null>(null);
-  const people = useMemo(() => createPeopleFromQuotes(quotes), [quotes]);
+  const people = useMemo(() => createPeopleFromSpeakers(allSpeakers), [allSpeakers]);
   const featuredQuoteIds = useMemo(() => getFeaturedQuoteIds(quotes), [quotes]);
   const isAdmin = profile?.role === "admin";
   const visibleView = view === "admin" && !isAdmin ? "archive" : view;
@@ -375,27 +358,24 @@ function App() {
     async function load() {
       setIsLoading(true);
       try {
-        const quoteResult = await api.quotes();
+        const [speakerResult, featuredResult] = await Promise.all([
+          api.listSpeakersAll(),
+          api.featuredQuotesAll(),
+        ]);
 
-        if (!isActive) {
-          return;
-        }
+        if (!isActive) return;
 
-        setQuotes(quoteResult);
+        setAllSpeakers(speakerResult);
+        setQuotes(featuredResult);
       } catch {
         // API unreachable — keep empty state
       } finally {
-        if (isActive) {
-          setIsLoading(false);
-        }
+        if (isActive) setIsLoading(false);
       }
     }
 
     void load();
-
-    return () => {
-      isActive = false;
-    };
+    return () => { isActive = false; };
   }, []);
 
   useEffect(() => {
@@ -506,8 +486,11 @@ function App() {
     } catch {}
     setProfile(result.user);
     setView("archive");
-    // 登录后立即加载 quotes，避免首次进入 archive 页面为空
-    void api.quotes().then(setQuotes).catch(() => {});
+    // 登录后立即加载数据
+    void Promise.all([api.listSpeakersAll(), api.featuredQuotesAll()]).then(([speakers, featured]) => {
+      setAllSpeakers(speakers);
+      setQuotes(featured);
+    }).catch(() => {});
   };
 
   const handleSignOut = () => {
@@ -519,11 +502,22 @@ function App() {
     setView("auth");
   };
 
-  const handleToggleFeaturedQuote = (quoteId: string) => {
+  const handleToggleFeaturedQuote = (quoteId: string, quoteData?: Quote) => {
     setQuotes((currentQuotes) => {
       const q = currentQuotes.find((item) => item.qid === quoteId);
-      if (!q) return currentQuotes;
+      if (!q) {
+        // Quote not in featured list yet — adding it as featured
+        if (quoteData) {
+          void api.toggleFeaturedQuote(quoteId, true);
+          return [...currentQuotes, { ...quoteData, is_featured: true }];
+        }
+        return currentQuotes;
+      }
       void api.toggleFeaturedQuote(quoteId, !q.is_featured);
+      // Un-featuring — remove from list
+      if (q.is_featured) {
+        return currentQuotes.filter((item) => item.qid !== quoteId);
+      }
       return currentQuotes.map((item) => (item.qid === quoteId ? { ...item, is_featured: !item.is_featured } : item));
     });
   };
@@ -535,8 +529,12 @@ function App() {
 
   const handleRefreshQuotes = useCallback(async () => {
     try {
-      const quoteResult = await api.quotes();
-      setQuotes(quoteResult);
+      const [speakerResult, featuredResult] = await Promise.all([
+        api.listSpeakersAll(),
+        api.featuredQuotesAll(),
+      ]);
+      setAllSpeakers(speakerResult);
+      setQuotes(featuredResult);
     } catch {
       // keep current state
     }
@@ -575,6 +573,7 @@ function App() {
             loading={isLoading}
             canManageFeatured={isAdmin}
             featuredQuoteIds={featuredQuoteIds}
+            featuredQuoteCount={quotes.length}
             onToggleFeaturedQuote={handleToggleFeaturedQuote}
           />
         )}
@@ -939,7 +938,8 @@ interface ArchivePageProps {
   loading: boolean;
   canManageFeatured: boolean;
   featuredQuoteIds: string[];
-  onToggleFeaturedQuote: (quoteId: string) => void;
+  featuredQuoteCount: number;
+  onToggleFeaturedQuote: (quoteId: string, quoteData?: Quote) => void;
 }
 
 function ArchivePage({
@@ -947,6 +947,7 @@ function ArchivePage({
   loading,
   canManageFeatured,
   featuredQuoteIds,
+  featuredQuoteCount,
   onToggleFeaturedQuote,
 }: ArchivePageProps) {
   const [selectedId, setSelectedId] = useState(people[0]?.id ?? "");
@@ -1158,7 +1159,7 @@ function ArchivePage({
               <p className="person-role">{selectedFeatured ? "被管理员标记的精选言论" : (selected?.role ?? "")}</p>
               <div className="person-stats">
                 <span className="badge">QQ: {selectedFeatured ? "MULTI" : (selected?.qqnumber ?? "—")}</span>
-                <span className="badge">{quoteTotal} 条发言</span>
+                <span className="badge">{selectedFeatured && quoteTotal === 0 ? featuredQuoteCount : quoteTotal} 条发言</span>
                 <span className="badge">{selectedFeatured ? "FEATURED" : (selected?.qqGroup ?? "—")}</span>
               </div>
             </div>
@@ -1322,7 +1323,7 @@ interface HistoryRowsProps {
   rows: Quote[];
   canManageFeatured: boolean;
   featuredQuoteIds: string[];
-  onToggleFeaturedQuote: (quoteId: string) => void;
+  onToggleFeaturedQuote: (quoteId: string, quoteData?: Quote) => void;
   onViewDetail: (quote: Quote) => void;
   activeDetailQid: string | null;
 }
@@ -1359,7 +1360,7 @@ function HistoryRows({ rows, canManageFeatured, featuredQuoteIds, onToggleFeatur
                   disabled={limitReached}
                   aria-pressed={isFeatured}
                   aria-label={isFeatured ? "取消精华" : "设为精华"}
-                  onClick={() => onToggleFeaturedQuote(item.qid)}
+                  onClick={() => onToggleFeaturedQuote(item.qid, item)}
                 >
                   <Star size={14} />
                 </button>
@@ -1406,7 +1407,7 @@ interface AdminDashboardProps {
   userPage: number;
   userTotal: number;
   onUserPageChange: (page: number) => void;
-  onToggleFeaturedQuote: (quoteId: string) => void;
+  onToggleFeaturedQuote: (quoteId: string, quoteData?: Quote) => void;
   onDeleteQuote: (quoteId: string) => void;
   onUserChange: (userId: string, patch: Partial<AdminUser>) => void;
   onRefreshQuotes: () => void;
@@ -1431,6 +1432,8 @@ function AdminDashboard({
   const [quoteQuery, setQuoteQuery] = useState("");
   const [quotePage, setQuotePage] = useState(0);
   const canManageQuotes = profile?.role === "admin";
+  const [adminQuotes, setAdminQuotes] = useState<Quote[]>([]);
+  const [adminQuotesLoading, setAdminQuotesLoading] = useState(false);
 
   // Create quote modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -1471,13 +1474,11 @@ function AdminDashboard({
 
   const filteredQuotes = useMemo(() => {
     const query = quoteQuery.trim().toLowerCase();
-    if (!query) {
-      return quotes;
-    }
-    return quotes.filter(
+    if (!query) return adminQuotes;
+    return adminQuotes.filter(
       (quote) => quote.qid.toLowerCase().includes(query) || quote.userdata.speaker.toLowerCase().includes(query),
     );
-  }, [quoteQuery, quotes]);
+  }, [quoteQuery, adminQuotes]);
   const quotePageCount = getPageCount(filteredQuotes.length, ADMIN_QUOTE_PAGE_SIZE);
   const safeQuotePage = Math.min(quotePage, quotePageCount - 1);
   const pagedQuotes = filteredQuotes.slice(
@@ -1488,6 +1489,22 @@ function AdminDashboard({
   useEffect(() => {
     setQuotePage(0);
   }, [quoteQuery]);
+
+  useEffect(() => {
+    if (adminTab !== 0) return;
+    let isActive = true;
+    async function load() {
+      setAdminQuotesLoading(true);
+      try {
+        const result = await api.quotes();
+        if (!isActive) return;
+        setAdminQuotes(result);
+      } catch {}
+      finally { if (isActive) setAdminQuotesLoading(false); }
+    }
+    void load();
+    return () => { isActive = false; };
+  }, [adminTab]);
 
   // Load speakers when tab changes to speakers
   useEffect(() => {
@@ -1664,6 +1681,17 @@ function AdminDashboard({
     }
   }
 
+  const handleAdminToggleFeatured = (quoteId: string) => {
+    const quoteData = adminQuotes.find(q => q.qid === quoteId);
+    onToggleFeaturedQuote(quoteId, quoteData);
+    setAdminQuotes(prev => prev.map(q => q.qid === quoteId ? {...q, is_featured: !q.is_featured} : q));
+  };
+
+  const handleAdminDeleteQuote = (quoteId: string) => {
+    onDeleteQuote(quoteId);
+    setAdminQuotes(prev => prev.filter(q => q.qid !== quoteId));
+  };
+
   return (
     <section className="admin-page" aria-labelledby="admin-title">
       <div className="admin-head">
@@ -1792,11 +1820,11 @@ function AdminDashboard({
                         type="button"
                         disabled={!canManageQuotes}
                         aria-label="切换精华"
-                        onClick={() => onToggleFeaturedQuote(quote.qid)}
+                        onClick={() => handleAdminToggleFeatured(quote.qid)}
                       >
                         <Star size={14} />
                       </button>
-                      <button type="button" disabled={!canManageQuotes} aria-label="删除言论" onClick={() => onDeleteQuote(quote.qid)}>
+                      <button type="button" disabled={!canManageQuotes} aria-label="删除言论" onClick={() => handleAdminDeleteQuote(quote.qid)}>
                         <Trash2 size={14} />
                       </button>
                     </div>
