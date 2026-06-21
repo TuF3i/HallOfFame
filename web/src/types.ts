@@ -43,8 +43,8 @@ export interface QuotePerson {
   role: string;
   signal: string;
   portrait: "circles" | "slices" | "halo" | "mesh";
-  featuredQuote: Quote;
-  history: Quote[];
+  featuredQuote?: Quote;
+  history?: Quote[];
 }
 
 export interface AdminUser {
